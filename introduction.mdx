@@ -1,0 +1,148 @@
+---
+title: Introduction
+description: Advanced Game Hacking Library for C/C++/Rust/Python
+---
+
+<img
+  className="block dark:hidden"
+  src="https://raw.githubusercontent.com/rdbo/libmem/master/LOGO.png"
+  alt="libmem logo"
+/>
+<img
+  className="hidden dark:block"
+  src="https://raw.githubusercontent.com/rdbo/libmem/master/LOGO.png"
+  alt="libmem logo"
+/>
+
+# Welcome to libmem
+
+libmem is a powerful, cross-platform memory hacking library designed for game hacking, reverse engineering, and low-level memory manipulation. Built with performance and flexibility in mind, libmem provides a comprehensive API for both internal and external process manipulation.
+
+<Note>
+  libmem is licensed under **GNU AGPLv3.0** (no later versions). Submodules and external dependencies may have their own licenses.
+</Note>
+
+## Why libmem?
+
+libmem offers a unified interface across multiple platforms and programming languages, making it the go-to solution for:
+
+- **Cross-platform development** - Write once, run on Windows, Linux, and FreeBSD
+- **Multi-language support** - Native bindings for C/C++, Rust, and Python
+- **Internal & External** - Manipulate processes from within or outside
+- **Production-ready** - Battle-tested in real-world game hacking projects
+
+## Quick Start
+
+<CardGroup cols={2}>
+  <Card
+    title="Installation Guide"
+    icon="download"
+    href="/installation"
+  >
+    Get libmem installed on your system in minutes
+  </Card>
+  <Card
+    title="API Reference"
+    icon="code"
+    href="/api/overview"
+  >
+    Explore the complete API documentation
+  </Card>
+  <Card
+    title="Features Overview"
+    icon="star"
+    href="/features"
+  >
+    Discover what libmem can do for you
+  </Card>
+  <Card
+    title="Platform Support"
+    icon="server"
+    href="/platforms"
+  >
+    Check compatibility with your target platform
+  </Card>
+</CardGroup>
+
+## Quick Example
+
+Here's a simple example demonstrating libmem's power with modern C++:
+
+```cpp
+/* C++20 or higher */
+#include <libmem/libmem.hpp>
+#include <iostream>
+
+using namespace libmem;
+
+int main()
+{
+    Address disas_addr = reinterpret_cast<Address>(main);
+
+    // Disassemble function 'main' until a 'ret' is found
+    for (;;) {
+        auto inst = Disassemble(disas_addr).value();
+        std::cout << inst.to_string() << std::endl;
+        if (inst.mnemonic == "ret")
+            break;
+        disas_addr += inst.bytes.size();
+    }
+
+    return 0;
+}
+```
+
+<Info>
+  This example demonstrates libmem's JIT disassembly capabilities - one of many powerful features available out of the box.
+</Info>
+
+## Function Hooking Made Easy
+
+Hook functions with just a few lines of code:
+
+```c
+#include <libmem/libmem.h>
+
+void hk_take_damage(int amount)
+{
+    printf("hooked take_damage! no damage will be taken\n");
+    return;
+}
+
+int main()
+{
+    lm_module_t game_mod;
+    lm_address_t fn_take_damage;
+
+    LM_FindModule("game.dll", &game_mod);
+    printf("[*] Base address of 'game.dll': %p\n", game_mod.base);
+
+    fn_take_damage = LM_FindSymbolAddress(&game_mod, "take_damage");
+    printf("[*] Found 'take_damage' function: %p\n", fn_take_damage);
+
+    LM_HookCode(fn_take_damage, hk_take_damage, LM_NULLPTR);
+    printf("[*] 'take_damage' hooked, player will no longer receive damage\n");
+
+    return 0;
+}
+```
+
+## Community & Support
+
+<Card title="Join our Discord Server" icon="discord" href="https://discord.com/invite/Qw8jsPD99X">
+  Get help, share projects, and connect with other libmem users
+</Card>
+
+## Next Steps
+
+<CardGroup cols={3}>
+  <Card title="Read the Features" href="/features">
+    Explore all capabilities
+  </Card>
+  <Card title="Install libmem" href="/installation">
+    Get started with installation
+  </Card>
+  <Card title="View Examples" href="/examples/basic-memory-manipulation">
+    Learn from practical examples
+  </Card>
+</CardGroup>

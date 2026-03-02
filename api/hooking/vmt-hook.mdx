@@ -1,0 +1,252 @@
+---
+title: VMT Hooking API
+description: Hook virtual method tables (VMTs) to intercept C++ virtual function calls
+---
+
+## Overview
+
+Virtual Method Table (VMT) hooking is a technique used to intercept C++ virtual function calls by replacing function pointers in an object's virtual table. This is useful for hooking class methods in games and applications.
+
+The VMT hooking API in libmem provides a complete set of functions to create, manage, and clean up VMT hooks.
+
+## lm_vmt_t Structure
+
+The `lm_vmt_t` structure is used to manage VMT hooks:
+
+```c
+typedef struct lm_vmt_entry_t {
+    lm_address_t           orig_func;
+    lm_size_t              index;
+    struct lm_vmt_entry_t *next;
+} lm_vmt_entry_t;
+
+typedef struct lm_vmt_t {
+    lm_address_t   *vtable;
+    lm_vmt_entry_t *hkentries;
+} lm_vmt_t;
+```
+
+<ParamField path="vtable" type="lm_address_t*">
+  Pointer to the virtual method table being managed.
+</ParamField>
+
+<ParamField path="hkentries" type="lm_vmt_entry_t*">
+  Linked list of hooked entries, storing original function pointers and their indices.
+</ParamField>
+
+---
+
+## LM_VmtNew
+
+Creates a new VMT manager from the VMT at `vtable`.
+
+### Signature
+
+```c
+lm_bool_t LM_VmtNew(
+    lm_address_t *vtable,
+    lm_vmt_t     *vmt_out
+);
+```
+
+### Parameters
+
+<ParamField path="vtable" type="lm_address_t*" required>
+  The virtual method table to manage.
+</ParamField>
+
+<ParamField path="vmt_out" type="lm_vmt_t*" required>
+  A pointer to the VMT manager that will be populated by this function.
+</ParamField>
+
+### Returns
+
+`LM_TRUE` on success, `LM_FALSE` on failure.
+
+---
+
+## LM_VmtHook
+
+Hooks the VMT function at index `from_fn_index` in the VMT managed by `vmt`, changing it to `to`.
+
+### Signature
+
+```c
+lm_bool_t LM_VmtHook(
+    lm_vmt_t    *vmt,
+    lm_size_t    from_fn_index,
+    lm_address_t to
+);
+```
+
+### Parameters
+
+<ParamField path="vmt" type="lm_vmt_t*" required>
+  The VMT manager.
+</ParamField>
+
+<ParamField path="from_fn_index" type="lm_size_t" required>
+  The index of the VMT function to hook.
+</ParamField>
+
+<ParamField path="to" type="lm_address_t" required>
+  The function that will replace the original VMT function.
+</ParamField>
+
+### Returns
+
+`LM_TRUE` on success, `LM_FALSE` on failure.
+
+---
+
+## LM_VmtUnhook
+
+Unhooks the VMT function at index `fn_index` in the VMT managed by `vmt`, restoring the original function.
+
+### Signature
+
+```c
+lm_bool_t LM_VmtUnhook(
+    lm_vmt_t *vmt,
+    lm_size_t fn_index
+);
+```
+
+### Parameters
+
+<ParamField path="vmt" type="lm_vmt_t*" required>
+  The VMT manager.
+</ParamField>
+
+<ParamField path="fn_index" type="lm_size_t" required>
+  The index of the VMT function to unhook.
+</ParamField>
+
+### Returns
+
+`LM_TRUE` on success, `LM_FALSE` on failure.
+
+---
+
+## LM_VmtGetOriginal
+
+Returns the original VMT function at index `fn_index` in the VMT managed by `vmt`. If the function has not been hooked before, it returns the function pointer at that index in the VMT array.
+
+### Signature
+
+```c
+lm_address_t LM_VmtGetOriginal(
+    const lm_vmt_t *vmt,
+    lm_size_t       fn_index
+);
+```
+
+### Parameters
+
+<ParamField path="vmt" type="const lm_vmt_t*" required>
+  The VMT manager.
+</ParamField>
+
+<ParamField path="fn_index" type="lm_size_t" required>
+  The index of the VMT function to query.
+</ParamField>
+
+### Returns
+
+The original VMT function at index `fn_index` in the VMT managed by `vmt`.
+
+---
+
+## LM_VmtReset
+
+Resets all the VMT functions back to their original addresses.
+
+### Signature
+
+```c
+lm_void_t LM_VmtReset(
+    lm_vmt_t *vmt
+);
+```
+
+### Parameters
+
+<ParamField path="vmt" type="lm_vmt_t*" required>
+  The VMT manager.
+</ParamField>
+
+---
+
+## LM_VmtFree
+
+Frees the VMT manager, restoring everything.
+
+### Signature
+
+```c
+lm_void_t LM_VmtFree(
+    lm_vmt_t *vmt
+);
+```
+
+### Parameters
+
+<ParamField path="vmt" type="lm_vmt_t*" required>
+  The VMT manager.
+</ParamField>
+
+---
+
+## Example
+
+```c
+#include <libmem/libmem.h>
+
+// Original function pointer type
+typedef void (*render_func_t)(void *thisptr);
+
+// Hook function
+void hk_render(void *thisptr)
+{
+    printf("Render function hooked!\n");
+    
+    // Call the original function if needed
+    // render_func_t orig = (render_func_t)LM_VmtGetOriginal(&vmt, 5);
+    // orig(thisptr);
+}
+
+int main()
+{
+    // Get the object's vtable pointer
+    void *object = get_game_object();
+    lm_address_t *vtable = *(lm_address_t **)object;
+    
+    lm_vmt_t vmt;
+    
+    // Create a VMT manager
+    if (!LM_VmtNew(vtable, &vmt)) {
+        printf("Failed to create VMT manager\n");
+        return 1;
+    }
+    
+    // Hook the render function at index 5
+    if (LM_VmtHook(&vmt, 5, (lm_address_t)hk_render)) {
+        printf("[*] Render function hooked successfully\n");
+    }
+    
+    // ... do something ...
+    
+    // Unhook the render function
+    if (LM_VmtUnhook(&vmt, 5)) {
+        printf("[*] Render function unhooked\n");
+    }
+    
+    // Or reset all hooks
+    // LM_VmtReset(&vmt);
+    
+    // Free the VMT manager when done
+    LM_VmtFree(&vmt);
+    
+    return 0;
+}
+```

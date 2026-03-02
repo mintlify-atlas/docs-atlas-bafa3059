@@ -1,0 +1,184 @@
+---
+title: 'Code Length'
+description: 'Calculate instruction-aligned code lengths and get architecture information'
+---
+
+## LM_CodeLength
+
+Calculates the instruction-aligned size based on a minimum length requirement.
+
+```c
+LM_API lm_size_t LM_CALL
+LM_CodeLength(lm_address_t machine_code,
+              lm_size_t    min_length);
+```
+
+<ParamField path="machine_code" type="lm_address_t" required>
+  The memory address of the instructions to measure.
+</ParamField>
+
+<ParamField path="min_length" type="lm_size_t" required>
+  The minimum size in bytes that should be covered by complete instructions.
+</ParamField>
+
+<ResponseField name="Return Value" type="lm_size_t">
+  Returns the size aligned to the next complete instruction boundary on success, or `0` on failure.
+</ResponseField>
+
+<Info>
+This function is useful when you need to overwrite code with a hook or patch, and you want to ensure you don't split an instruction in half. For example, if you need at least 5 bytes for a jump instruction, `LM_CodeLength` will tell you the actual number of bytes you need to overwrite to maintain instruction boundaries.
+</Info>
+
+### Example
+
+If you need to write a 5-byte jump but the first instruction at the target is 3 bytes and the second is 4 bytes:
+- `min_length = 5` would return `7` (3 + 4 bytes)
+- This ensures you overwrite complete instructions without breaking code execution
+
+---
+
+## LM_CodeLengthEx
+
+Calculates the instruction-aligned size in a remote process based on a minimum length requirement.
+
+```c
+LM_API lm_size_t LM_CALL
+LM_CodeLengthEx(const lm_process_t *process,
+                lm_address_t        machine_code,
+                lm_size_t           min_length);
+```
+
+<ParamField path="process" type="const lm_process_t*" required>
+  Pointer to the remote process structure.
+</ParamField>
+
+<ParamField path="machine_code" type="lm_address_t" required>
+  The memory address of the instructions in the remote process.
+</ParamField>
+
+<ParamField path="min_length" type="lm_size_t" required>
+  The minimum size in bytes that should be covered by complete instructions.
+</ParamField>
+
+<ResponseField name="Return Value" type="lm_size_t">
+  Returns the size aligned to the next complete instruction boundary on success, or `0` on failure.
+</ResponseField>
+
+---
+
+## LM_GetArchitecture
+
+Returns the current process architecture.
+
+```c
+LM_API lm_arch_t LM_CALL
+LM_GetArchitecture();
+```
+
+<ResponseField name="Return Value" type="lm_arch_t">
+  Returns the architecture of the current process:
+  - `LM_ARCH_X86` - x86 32-bit
+  - `LM_ARCH_X64` - x86 64-bit
+  - `LM_ARCH_ARMV7` - ARMv7
+  - `LM_ARCH_ARMV8` - ARMv8
+  - `LM_ARCH_AARCH64` - ARM64/AArch64
+  - `LM_ARCH_THUMBV7` - ARMv7 Thumb mode
+  - `LM_ARCH_THUMBV8` - ARMv8 Thumb mode
+  - `LM_ARCH_MIPS`, `LM_ARCH_MIPS64` - MIPS variants
+  - `LM_ARCH_PPC32`, `LM_ARCH_PPC64` - PowerPC variants
+  - And more (see full enum in libmem.h)
+</ResponseField>
+
+<Note>
+The architecture returned by this function is automatically detected based on the compilation target and runtime environment.
+</Note>
+
+---
+
+## Architecture Constants
+
+The `lm_arch_t` enum defines all supported architectures:
+
+```c
+enum {
+    LM_ARCH_GENERIC = 0,
+    
+    // ARM
+    LM_ARCH_ARMV7,      // ARMv7
+    LM_ARCH_ARMV8,      // ARMv8
+    LM_ARCH_THUMBV7,    // ARMv7, thumb mode
+    LM_ARCH_THUMBV8,    // ARMv8, thumb mode
+    LM_ARCH_ARMV7EB,    // ARMv7, big endian
+    LM_ARCH_THUMBV7EB,  // ARMv7, big endian, thumb mode
+    LM_ARCH_ARMV8EB,    // ARMv8, big endian
+    LM_ARCH_THUMBV8EB,  // ARMv8, big endian, thumb mode
+    LM_ARCH_AARCH64,    // ARM64/AArch64
+    
+    // MIPS
+    LM_ARCH_MIPS,       // Mips32
+    LM_ARCH_MIPS64,     // Mips64
+    LM_ARCH_MIPSEL,     // Mips32, little endian
+    LM_ARCH_MIPSEL64,   // Mips64, little endian
+    
+    // X86
+    LM_ARCH_X86_16,     // x86_16
+    LM_ARCH_X86,        // x86_32
+    LM_ARCH_X64,        // x86_64
+    
+    // PowerPC
+    LM_ARCH_PPC32,      // PowerPC 32
+    LM_ARCH_PPC64,      // PowerPC 64
+    LM_ARCH_PPC64LE,    // PowerPC 64, little endian
+    
+    // SPARC
+    LM_ARCH_SPARC,      // Sparc
+    LM_ARCH_SPARC64,    // Sparc64
+    LM_ARCH_SPARCEL,    // Sparc, little endian
+    
+    // SystemZ
+    LM_ARCH_SYSZ,       // S390X
+    
+    LM_ARCH_MAX,
+};
+```
+
+<Warning>
+Not all architectures are fully supported by libmem. The enum lists architectures supported by both the assembler (Keystone) and disassembler (Capstone), but full libmem support may vary by platform.
+</Warning>
+
+---
+
+## Example Usage
+
+### Calculating Hook Size
+
+```c
+#include <libmem/libmem.h>
+
+lm_address_t target_function = 0x12345678;
+lm_size_t hook_size = 5; // Need 5 bytes for JMP instruction
+
+// Calculate actual size to overwrite (aligned to instruction boundaries)
+lm_size_t actual_size = LM_CodeLength(target_function, hook_size);
+
+if (actual_size > 0) {
+    printf("Need to overwrite %zu bytes to safely hook this function\n", actual_size);
+    // Proceed with hooking...
+}
+```
+
+### Using Architecture Info
+
+```c
+#include <libmem/libmem.h>
+
+lm_arch_t arch = LM_GetArchitecture();
+
+if (arch == LM_ARCH_X64) {
+    printf("Running on x86-64 architecture\n");
+} else if (arch == LM_ARCH_X86) {
+    printf("Running on x86-32 architecture\n");
+} else if (arch == LM_ARCH_AARCH64) {
+    printf("Running on ARM64 architecture\n");
+}
+```

@@ -1,0 +1,181 @@
+---
+title: 'Enumerate Modules'
+description: 'Enumerate modules in the current or a specified process'
+icon: 'list'
+---
+
+## Overview
+
+The Module Enumeration APIs allow you to iterate through all loaded modules (libraries/DLLs) in a process. A callback function is invoked for each module found during enumeration.
+
+## lm_module_t Structure
+
+The `lm_module_t` structure contains information about a loaded module:
+
+```c
+typedef struct lm_module_t {
+    lm_address_t base;              // Base address of the module
+    lm_address_t end;               // End address of the module
+    lm_size_t    size;              // Size of the module in bytes
+    lm_char_t    path[LM_PATH_MAX]; // Full path to the module
+    lm_char_t    name[LM_PATH_MAX]; // Module name
+} lm_module_t;
+```
+
+### Fields
+
+<ParamField path="base" type="lm_address_t">
+  Base address where the module is loaded in memory
+</ParamField>
+
+<ParamField path="end" type="lm_address_t">
+  End address of the module in memory
+</ParamField>
+
+<ParamField path="size" type="lm_size_t">
+  Total size of the module in bytes
+</ParamField>
+
+<ParamField path="path" type="lm_char_t[LM_PATH_MAX]">
+  Full file system path to the module
+</ParamField>
+
+<ParamField path="name" type="lm_char_t[LM_PATH_MAX]">
+  Name of the module (filename)
+</ParamField>
+
+## LM_EnumModules
+
+Enumerates modules in the current process and calls a callback function for each module found.
+
+### Signature
+
+```c
+LM_API lm_bool_t LM_CALL
+LM_EnumModules(lm_bool_t (LM_CALL *callback)(lm_module_t *module,
+                                             lm_void_t   *arg),
+               lm_void_t          *arg);
+```
+
+### Parameters
+
+<ParamField path="callback" type="function pointer" required>
+  The callback function that will receive the current module in the enumeration and an extra argument. This function should return `LM_TRUE` to continue the enumeration, or `LM_FALSE` to stop it.
+  
+  Callback signature:
+  ```c
+  lm_bool_t callback(lm_module_t *module, lm_void_t *arg)
+  ```
+</ParamField>
+
+<ParamField path="arg" type="lm_void_t*">
+  An extra argument that is passed to the callback function. This allows you to provide additional information or context to the callback function when it is invoked during the enumeration of modules.
+</ParamField>
+
+### Returns
+
+Returns `LM_TRUE` if the enumeration succeeds, or `LM_FALSE` if it fails.
+
+### Example
+
+```c
+#include <libmem/libmem.h>
+#include <stdio.h>
+
+lm_bool_t module_callback(lm_module_t *module, lm_void_t *arg)
+{
+    printf("Module: %s\n", module->name);
+    printf("  Base: %p\n", (void *)module->base);
+    printf("  Size: %zu bytes\n", module->size);
+    printf("  Path: %s\n\n", module->path);
+    
+    return LM_TRUE; // Continue enumeration
+}
+
+int main()
+{
+    printf("Enumerating modules in current process:\n\n");
+    LM_EnumModules(module_callback, LM_NULLPTR);
+    
+    return 0;
+}
+```
+
+## LM_EnumModulesEx
+
+Enumerates modules in a specified process and calls a callback function for each module found.
+
+### Signature
+
+```c
+LM_API lm_bool_t LM_CALL
+LM_EnumModulesEx(const lm_process_t *process,
+                 lm_bool_t (LM_CALL *callback)(lm_module_t *module,
+                                               lm_void_t   *arg),
+                 lm_void_t          *arg);
+```
+
+### Parameters
+
+<ParamField path="process" type="const lm_process_t*" required>
+  The process that the modules will be enumerated from.
+</ParamField>
+
+<ParamField path="callback" type="function pointer" required>
+  The callback function that will receive the current module in the enumeration and an extra argument. This function should return `LM_TRUE` to continue the enumeration, or `LM_FALSE` to stop it.
+  
+  Callback signature:
+  ```c
+  lm_bool_t callback(lm_module_t *module, lm_void_t *arg)
+  ```
+</ParamField>
+
+<ParamField path="arg" type="lm_void_t*">
+  An extra argument that is passed to the callback function. This allows you to provide additional information or context to the callback function when it is invoked during the enumeration of modules.
+</ParamField>
+
+### Returns
+
+Returns `LM_TRUE` if the enumeration succeeds, or `LM_FALSE` if it fails.
+
+### Example
+
+```c
+#include <libmem/libmem.h>
+#include <stdio.h>
+
+typedef struct {
+    int count;
+} module_count_t;
+
+lm_bool_t count_callback(lm_module_t *module, lm_void_t *arg)
+{
+    module_count_t *data = (module_count_t *)arg;
+    data->count++;
+    return LM_TRUE;
+}
+
+int main()
+{
+    lm_process_t process;
+    module_count_t data = { 0 };
+    
+    // Find a process by name
+    if (!LM_FindProcess("target.exe", &process)) {
+        printf("Failed to find process\n");
+        return 1;
+    }
+    
+    // Count modules in the target process
+    LM_EnumModulesEx(&process, count_callback, &data);
+    printf("Found %d modules in process %s\n", data.count, process.name);
+    
+    return 0;
+}
+```
+
+## See Also
+
+- [Find Module](/api/module/find-module) - Find a specific module by name
+- [Load Module](/api/module/load-module) - Load a module into a process
+- [Unload Module](/api/module/unload-module) - Unload a module from a process

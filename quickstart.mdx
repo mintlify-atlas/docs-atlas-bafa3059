@@ -1,80 +1,399 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quickstart
+description: Get started with libmem in less than 5 minutes
 ---
 
-## Get started in three steps
+This guide will help you get started with libmem quickly. Choose your preferred language and follow along.
 
-Get your documentation site running locally and make your first customization.
+## Your First Program
 
-### Step 1: Set up your local environment
+libmem provides powerful memory manipulation capabilities for both internal (same process) and external (different process) operations. Let's start with a simple example.
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+<Tabs>
+  <Tab title="Modern C++">
+    This example disassembles the `main` function until a `ret` instruction is found.
 
-### Step 2: Deploy your changes
+    ```cpp
+    /* C++20 or higher */
+    #include <libmem/libmem.hpp>
+    #include <iostream>
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+    using namespace libmem;
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+    int main()
+    {
+        Address disas_addr = reinterpret_cast<Address>(main);
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+        // Disassemble function 'main' until a 'ret' is found
+        for (;;) {
+            auto inst = Disassemble(disas_addr).value();
+            std::cout << inst.to_string() << std::endl;
+            if (inst.mnemonic == "ret")
+                break;
+            disas_addr += inst.bytes.size();
+        }
 
-### Step 3: Go live
+        return 0;
+    }
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+    /*
+    Output:
+    0x55b1a3259275: push rbp -> [ 55 ]
+    0x55b1a3259276: mov rbp, rsp -> [ 48 89 e5 ]
+    ...
+    0x55b1a325941a: leave  -> [ c9 ]
+    0x55b1a325941b: ret  -> [ c3 ]
+    */
+    ```
 
-## Next steps
+    **Compile and link:**
+    ```bash
+    g++ -std=c++20 main.cpp -llibmem -o myprogram
+    ```
+  </Tab>
 
-Now that you have your docs running, explore these key features:
+  <Tab title="C">
+    This example hooks a function to prevent damage in a game.
 
-<CardGroup cols={2}>
+    ```c
+    #include <libmem/libmem.h>
 
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
+    void hk_take_damage(int amount)
+    {
+      printf("hooked take_damage! no damage will be taken\n");
+      return;
+    }
 
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
+    int main()
+    {
+        lm_module_t game_mod;
+        lm_address_t fn_take_damage;
 
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
+        LM_FindModule("game.dll", &game_mod);
+        printf("[*] Base address of 'game.dll': %p\n", game_mod.base);
 
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
+        fn_take_damage = LM_FindSymbolAddress(&game_mod, "take_damage");
+        printf("[*] Found 'take_damage' function: %p\n", fn_take_damage);
 
-</CardGroup>
+        LM_HookCode(fn_take_damage, hk_take_damage, LM_NULLPTR);
+        printf("[*] 'take_damage' hooked, player will no longer receive damage\n");
 
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>
+        return 0;
+    }
+    ```
+
+    **Compile and link:**
+    ```bash
+    gcc main.c -llibmem -o myprogram
+    ```
+  </Tab>
+
+  <Tab title="Rust">
+    This example demonstrates external process manipulation with signature scanning and memory patching.
+
+    ```rust
+    use libmem::*;
+
+    fn godmode() -> Option<()> {
+        let game_process = find_process("game_linux64")?;
+        let client_module = find_module_ex(&game_process, "libclient.so")?;
+
+        let fn_update_health = sig_scan_ex(
+            &game_process,
+            "55 48 89 E5 66 B8 ?? ?? 48 8B 5D FC",
+            client_module.base,
+            client_module.size,
+        )?;
+        println!(
+            "[*] Signature scan result for 'update_health' function: {}",
+            fn_update_health
+        );
+
+        let shellcode = assemble_ex("mov rbx, 1337; mov [rdi], rbx; ret", Arch::X64, 0)?;
+        write_memory_ex(&game_process, fn_update_health + 8, &shellcode.as_slice())?;
+        println!("[*] Patched 'update_health' function to always set health to 1337!");
+
+        Some(())
+    }
+
+    fn main() {
+        godmode();
+    }
+    ```
+
+    **Add to Cargo.toml:**
+    ```toml
+    [dependencies]
+    libmem = "5"
+    ```
+
+    **Run:**
+    ```bash
+    cargo run
+    ```
+  </Tab>
+
+  <Tab title="Python">
+    This example demonstrates pointer resolution and continuous memory writing.
+
+    ```python
+    from libmem import *
+    import time
+
+    process = find_process("game.exe")
+    game_mod = find_module_ex(process, process.name)
+
+    # Resolve a Cheat Engine pointer scan
+    health_pointer = deep_pointer_ex(process, game_mod.base + 0xdeadbeef, [0xA0, 0x04, 0x10, 0xF0, 0x0])
+
+    # Set player health to 1337 forever
+    while True:
+        write_memory_ex(process, health_pointer, bytearray(int(1337).to_bytes(4)))
+        time.sleep(0.2)
+    ```
+
+    **Run:**
+    ```bash
+    python3 myprogram.py
+    ```
+  </Tab>
+</Tabs>
+
+## Common Operations
+
+Here are some common operations you'll perform with libmem:
+
+### Finding Processes and Modules
+
+<Tabs>
+  <Tab title="C++">
+    ```cpp
+    #include <libmem/libmem.hpp>
+    using namespace libmem;
+
+    // Find a process by name
+    auto proc = FindProcess("game.exe");
+
+    // Find a module in the current process
+    auto mod = FindModule("client.dll");
+
+    // Find a module in a remote process
+    auto remote_mod = FindModule(&proc.value(), "engine.dll");
+    ```
+  </Tab>
+
+  <Tab title="C">
+    ```c
+    #include <libmem/libmem.h>
+
+    // Find a process by name
+    lm_process_t proc;
+    LM_FindProcess("game.exe", &proc);
+
+    // Find a module in the current process
+    lm_module_t mod;
+    LM_FindModule("client.dll", &mod);
+
+    // Find a module in a remote process
+    lm_module_t remote_mod;
+    LM_FindModuleEx(&proc, "engine.dll", &remote_mod);
+    ```
+  </Tab>
+
+  <Tab title="Rust">
+    ```rust
+    use libmem::*;
+
+    // Find a process by name
+    let proc = find_process("game")?;
+
+    // Find a module in the current process
+    let module = find_module("client.so")?;
+
+    // Find a module in a remote process
+    let remote_mod = find_module_ex(&proc, "engine.so")?;
+    ```
+  </Tab>
+
+  <Tab title="Python">
+    ```python
+    from libmem import *
+
+    # Find a process by name
+    proc = find_process("game")
+
+    # Find a module in the current process
+    mod = find_module("client.so")
+
+    # Find a module in a remote process
+    remote_mod = find_module_ex(proc, "engine.so")
+    ```
+  </Tab>
+</Tabs>
+
+### Reading and Writing Memory
+
+<Tabs>
+  <Tab title="C++">
+    ```cpp
+    // Read memory
+    int value = ReadMemory<int>(address);
+
+    // Write memory
+    WriteMemory(address, 1337);
+
+    // Read from remote process
+    auto remote_value = ReadMemory<int>(&process, address);
+
+    // Write to remote process
+    WriteMemory(&process, address, 9001);
+    ```
+  </Tab>
+
+  <Tab title="C">
+    ```c
+    // Read memory
+    int value;
+    LM_ReadMemory(address, (lm_byte_t *)&value, sizeof(value));
+
+    // Write memory
+    int new_value = 1337;
+    LM_WriteMemory(address, (lm_byte_t *)&new_value, sizeof(new_value));
+
+    // Read from remote process
+    int remote_value;
+    LM_ReadMemoryEx(&process, address, (lm_byte_t *)&remote_value, sizeof(remote_value));
+
+    // Write to remote process
+    int remote_new_value = 9001;
+    LM_WriteMemoryEx(&process, address, (lm_byte_t *)&remote_new_value, sizeof(remote_new_value));
+    ```
+  </Tab>
+
+  <Tab title="Rust">
+    ```rust
+    // Read memory (local)
+    let value: i32 = read_memory(address)?;
+
+    // Write memory (local)
+    write_memory(address, &1337i32.to_ne_bytes())?;
+
+    // Read from remote process
+    let mut buffer = vec![0u8; 4];
+    read_memory_ex(&process, address, &mut buffer)?;
+
+    // Write to remote process
+    write_memory_ex(&process, address, &9001i32.to_ne_bytes())?;
+    ```
+  </Tab>
+
+  <Tab title="Python">
+    ```python
+    # Read memory (local)
+    value = read_memory(address, 4)
+
+    # Write memory (local)
+    write_memory(address, bytearray(int(1337).to_bytes(4)))
+
+    # Read from remote process
+    value = read_memory_ex(process, address, 4)
+
+    # Write to remote process
+    write_memory_ex(process, address, bytearray(int(9001).to_bytes(4)))
+    ```
+  </Tab>
+</Tabs>
+
+### Scanning for Patterns
+
+<Tabs>
+  <Tab title="C++">
+    ```cpp
+    // Signature scan
+    auto result = SigScan("DE AD ?? BE EF", start_addr, scan_size);
+
+    // Signature scan in remote process
+    auto remote_result = SigScan(&process, "48 89 5C 24 ?? 57", start_addr, scan_size);
+    ```
+  </Tab>
+
+  <Tab title="C">
+    ```c
+    // Signature scan
+    lm_address_t result = LM_SigScan("DE AD ?? BE EF", start_addr, scan_size);
+
+    // Signature scan in remote process
+    lm_address_t remote_result = LM_SigScanEx(&process, "48 89 5C 24 ?? 57", start_addr, scan_size);
+    ```
+  </Tab>
+
+  <Tab title="Rust">
+    ```rust
+    // Signature scan
+    let result = sig_scan("DE AD ?? BE EF", start_addr, scan_size)?;
+
+    // Signature scan in remote process
+    let remote_result = sig_scan_ex(&process, "48 89 5C 24 ?? 57", start_addr, scan_size)?;
+    ```
+  </Tab>
+
+  <Tab title="Python">
+    ```python
+    # Signature scan
+    result = sig_scan("DE AD ?? BE EF", start_addr, scan_size)
+
+    # Signature scan in remote process
+    remote_result = sig_scan_ex(process, "48 89 5C 24 ?? 57", start_addr, scan_size)
+    ```
+  </Tab>
+</Tabs>
+
+## Usage Guidelines
+
+### C/C++ Projects
+
+Include the appropriate header:
+
+```c
+#include <libmem/libmem.h>   /* C/C++ */
+#include <libmem/libmem.hpp> /* Modern C++ (C++20+) */
+```
+
+Link against libmem:
+- **GCC-like compilers:** Add `-llibmem` to your compiler flags
+- **Windows:** Link `libmem.lib` (static) or `libmem.dll` (dynamic)
+- **Unix-like:** Link `liblibmem.so` (shared) or `liblibmem.a` (static)
+
+### Python Projects
+
+Simply import libmem:
+
+```python
+from libmem import *
+```
+
+### Rust Projects
+
+Add to `Cargo.toml` and import:
+
+```toml
+[dependencies]
+libmem = "5"
+```
+
+```rust
+use libmem::*;
+```
+
+## What's Next?
+
+Now that you have libmem set up and running, explore the full capabilities:
+
+- **Process & Thread APIs** - Enumerate and manage processes and threads
+- **Module APIs** - Load, unload, and enumerate modules
+- **Memory APIs** - Read, write, allocate, and protect memory
+- **Scanning APIs** - Pattern scanning and signature matching
+- **Hooking APIs** - Function hooking and VMT hooking
+- **Assembly APIs** - Assemble and disassemble code on-the-fly
+
+Check out the [API Reference](/api/overview) for detailed documentation of all available functions.

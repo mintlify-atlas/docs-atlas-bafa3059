@@ -1,0 +1,91 @@
+---
+title: Deep Pointer
+description: Resolve multi-level pointer chains
+---
+
+Deep pointer functions allow you to resolve multi-level pointer chains (pointer scans) by following a series of offsets from a base address. This is commonly used to locate dynamic data structures in game memory.
+
+## LM_DeepPointer
+
+Calculates a deep pointer address by applying a series of offsets to a base address and dereferencing intermediate pointers in the current process.
+
+```c
+lm_address_t LM_DeepPointer(
+    lm_address_t        base,
+    const lm_address_t *offsets,
+    size_t              noffsets
+);
+```
+
+<ParamField path="base" type="lm_address_t" required>
+  The starting address from which to calculate the deep pointer.
+</ParamField>
+
+<ParamField path="offsets" type="const lm_address_t*" required>
+  An array of offsets used to navigate through the memory addresses.
+</ParamField>
+
+<ParamField path="noffsets" type="size_t" required>
+  The number of offsets in the `offsets` array.
+</ParamField>
+
+### Returns
+
+Returns the final deep pointer address calculated based on the provided base address and offsets. The function iterates through the offsets, adjusting the base address and dereferencing accordingly.
+
+---
+
+## LM_DeepPointerEx
+
+Calculates a deep pointer address by applying a series of offsets to a base address and dereferencing intermediate pointers in a remote process's memory space.
+
+```c
+lm_address_t LM_DeepPointerEx(
+    const lm_process_t *process,
+    lm_address_t        base,
+    const lm_address_t *offsets,
+    lm_size_t           noffsets
+);
+```
+
+<ParamField path="process" type="const lm_process_t*" required>
+  A pointer to the process that the deep pointer will be calculated from.
+</ParamField>
+
+<ParamField path="base" type="lm_address_t" required>
+  The starting address from which to calculate the deep pointer.
+</ParamField>
+
+<ParamField path="offsets" type="const lm_address_t*" required>
+  An array of offsets used to navigate through the memory addresses.
+</ParamField>
+
+<ParamField path="noffsets" type="lm_size_t" required>
+  The number of offsets in the `offsets` array.
+</ParamField>
+
+### Returns
+
+Returns the final deep pointer address calculated based on the provided base address and offsets in the target process's memory.
+
+---
+
+## Example (Python)
+
+```python
+from libmem import *
+import time
+
+process = find_process("game.exe")
+game_mod = find_module_ex(process, process.name)
+
+# Resolve a Cheat Engine pointer scan
+health_pointer = deep_pointer_ex(process, game_mod.base + 0xdeadbeef, [0xA0, 0x04, 0x10, 0xF0, 0x0])
+
+# Set player health to 1337 forever
+while True:
+    write_memory_ex(process, health_pointer, bytearray(int(1337).to_bytes(4)))
+    time.sleep(0.2)
+```
+
+This example demonstrates how to resolve a multi-level pointer chain from Cheat Engine and continuously write to the final address to maintain a specific health value.

@@ -1,0 +1,213 @@
+---
+title: 'Load Module'
+description: 'Load a module (library/DLL) into the current or a specified process'
+icon: 'download'
+---
+
+## Overview
+
+The Load Module APIs allow you to dynamically load a module (shared library/DLL) into a process at runtime. This is useful for injecting code, loading plugins, or dynamically extending functionality.
+
+## lm_module_t Structure
+
+The `lm_module_t` structure contains information about a loaded module:
+
+```c
+typedef struct lm_module_t {
+    lm_address_t base;              // Base address of the module
+    lm_address_t end;               // End address of the module
+    lm_size_t    size;              // Size of the module in bytes
+    lm_char_t    path[LM_PATH_MAX]; // Full path to the module
+    lm_char_t    name[LM_PATH_MAX]; // Module name
+} lm_module_t;
+```
+
+### Fields
+
+<ParamField path="base" type="lm_address_t">
+  Base address where the module is loaded in memory
+</ParamField>
+
+<ParamField path="end" type="lm_address_t">
+  End address of the module in memory
+</ParamField>
+
+<ParamField path="size" type="lm_size_t">
+  Total size of the module in bytes
+</ParamField>
+
+<ParamField path="path" type="lm_char_t[LM_PATH_MAX]">
+  Full file system path to the module
+</ParamField>
+
+<ParamField path="name" type="lm_char_t[LM_PATH_MAX]">
+  Name of the module (filename)
+</ParamField>
+
+## LM_LoadModule
+
+Loads a module from a specified path into the current process.
+
+### Signature
+
+```c
+LM_API lm_bool_t LM_CALL
+LM_LoadModule(lm_string_t  path,
+              lm_module_t *module_out);
+```
+
+### Parameters
+
+<ParamField path="path" type="lm_string_t" required>
+  The path of the module to be loaded. This should be the full file system path to the library/DLL file.
+</ParamField>
+
+<ParamField path="module_out" type="lm_module_t*">
+  A pointer to a `lm_module_t` type, which is used to store information about the loaded module (optional). Pass `LM_NULLPTR` if you don't need the module information.
+</ParamField>
+
+### Returns
+
+Returns `LM_TRUE` if the module was loaded successfully, or `LM_FALSE` if it fails.
+
+### Example
+
+```c
+#include <libmem/libmem.h>
+#include <stdio.h>
+
+int main()
+{
+    lm_module_t plugin_mod;
+    
+    // Load a plugin into the current process
+    if (!LM_LoadModule("/path/to/plugin.so", &plugin_mod)) {
+        printf("Failed to load plugin\n");
+        return 1;
+    }
+    
+    printf("[*] Plugin loaded successfully\n");
+    printf("[*] Base address: %p\n", (void *)plugin_mod.base);
+    printf("[*] Size: %zu bytes\n", plugin_mod.size);
+    
+    // Find and call a function from the loaded module
+    lm_address_t init_fn = LM_FindSymbolAddress(&plugin_mod, "plugin_init");
+    if (init_fn != LM_ADDRESS_BAD) {
+        printf("[*] Found plugin_init at: %p\n", (void *)init_fn);
+        // Cast and call the function
+        void (*plugin_init)(void) = (void (*)(void))init_fn;
+        plugin_init();
+    }
+    
+    return 0;
+}
+```
+
+### Loading Without Module Info
+
+If you don't need information about the loaded module, you can pass `LM_NULLPTR` for the `module_out` parameter:
+
+```c
+// Just load the module, don't retrieve info
+if (LM_LoadModule("/path/to/library.dll", LM_NULLPTR)) {
+    printf("Module loaded\n");
+}
+```
+
+## LM_LoadModuleEx
+
+Loads a module from a specified path into a specified process.
+
+### Signature
+
+```c
+LM_API lm_bool_t LM_CALL
+LM_LoadModuleEx(const lm_process_t *process,
+                lm_string_t         path,
+                lm_module_t        *module_out);
+```
+
+### Parameters
+
+<ParamField path="process" type="const lm_process_t*" required>
+  The process that the module will be loaded into.
+</ParamField>
+
+<ParamField path="path" type="lm_string_t" required>
+  The path of the module to be loaded. This should be the full file system path to the library/DLL file.
+</ParamField>
+
+<ParamField path="module_out" type="lm_module_t*">
+  A pointer to a `lm_module_t` type, which is used to store information about the loaded module (optional). Pass `LM_NULLPTR` if you don't need the module information.
+</ParamField>
+
+### Returns
+
+Returns `LM_TRUE` if the module was loaded successfully, or `LM_FALSE` if it fails.
+
+### Example
+
+```c
+#include <libmem/libmem.h>
+#include <stdio.h>
+
+int main()
+{
+    lm_process_t target_process;
+    lm_module_t injected_mod;
+    
+    // Find the target process
+    if (!LM_FindProcess("game.exe", &target_process)) {
+        printf("Failed to find target process\n");
+        return 1;
+    }
+    
+    printf("[*] Found process: %s (PID: %d)\n", target_process.name, target_process.pid);
+    
+    // Inject a DLL into the target process
+    if (!LM_LoadModuleEx(&target_process, "C:\\hack\\cheat.dll", &injected_mod)) {
+        printf("Failed to inject DLL\n");
+        return 1;
+    }
+    
+    printf("[*] DLL injected successfully\n");
+    printf("[*] Module name: %s\n", injected_mod.name);
+    printf("[*] Base address: %p\n", (void *)injected_mod.base);
+    printf("[*] Size: %zu bytes\n", injected_mod.size);
+    
+    return 0;
+}
+```
+
+## Platform-Specific Notes
+
+### Windows
+- Uses `LoadLibrary` internally
+- Requires full path or the DLL must be in the system search path
+- File extensions: `.dll`
+
+### Linux/FreeBSD
+- Uses `dlopen` internally
+- File extensions: `.so`, `.so.1`, etc.
+- Module must be in the library search path or use an absolute path
+
+### Cross-Platform Example
+
+```c
+#ifdef _WIN32
+    #define MODULE_PATH "C:\\plugins\\myplugin.dll"
+#else
+    #define MODULE_PATH "/usr/lib/myplugin.so"
+#endif
+
+lm_module_t mod;
+if (LM_LoadModule(MODULE_PATH, &mod)) {
+    printf("Module loaded: %s\n", mod.name);
+}
+```
+
+## See Also
+
+- [Unload Module](/api/module/unload-module) - Unload a module from a process
+- [Find Module](/api/module/find-module) - Find a loaded module by name
+- [Enumerate Modules](/api/module/enum-modules) - Enumerate all modules in a process

@@ -1,0 +1,139 @@
+---
+title: 'Assemble'
+description: 'Convert assembly code into machine code'
+---
+
+## LM_Assemble
+
+Assembles a single assembly instruction into machine code.
+
+```c
+LM_API lm_bool_t LM_CALL
+LM_Assemble(lm_string_t code,
+            lm_inst_t  *instruction_out);
+```
+
+<ParamField path="code" type="lm_string_t" required>
+  The assembly instruction to be assembled.
+  
+  Example: `"mov eax, ebx"`
+</ParamField>
+
+<ParamField path="instruction_out" type="lm_inst_t*" required>
+  Pointer to an `lm_inst_t` structure that will be populated with the assembled instruction.
+</ParamField>
+
+<ResponseField name="Return Value" type="lm_bool_t">
+  Returns `LM_TRUE` if the instruction was successfully assembled, `LM_FALSE` otherwise.
+</ResponseField>
+
+---
+
+## LM_AssembleEx
+
+Assembles multiple assembly instructions into machine code with full control over architecture and runtime address.
+
+```c
+LM_API lm_size_t LM_CALL
+LM_AssembleEx(lm_string_t  code,
+              lm_arch_t    arch,
+              lm_address_t runtime_address,
+              lm_byte_t  **payload_out);
+```
+
+<ParamField path="code" type="lm_string_t" required>
+  The assembly instructions to be assembled. Multiple instructions can be separated by semicolons.
+  
+  Example: `"mov eax, ebx ; jmp eax"`
+</ParamField>
+
+<ParamField path="arch" type="lm_arch_t" required>
+  The target architecture for assembly. Can be:
+  - `LM_ARCH_X86` - x86 32-bit
+  - `LM_ARCH_X64` - x86 64-bit
+  - `LM_ARCH_ARMV7`, `LM_ARCH_ARMV8`, `LM_ARCH_AARCH64` - ARM variants
+  - And more (see `lm_arch_t` enum)
+</ParamField>
+
+<ParamField path="runtime_address" type="lm_address_t" required>
+  The runtime address used to resolve addressing (e.g., relative jumps will be calculated based on this address).
+  
+  Use `0` if you don't need specific address resolution.
+</ParamField>
+
+<ParamField path="payload_out" type="lm_byte_t**" required>
+  Pointer that will receive the assembled machine code buffer.
+  
+  **Important**: Must be freed with `LM_FreePayload()` after use.
+</ParamField>
+
+<ResponseField name="Return Value" type="lm_size_t">
+  Returns the size of the assembled instructions in bytes on success, or `0` on failure.
+</ResponseField>
+
+---
+
+## LM_FreePayload
+
+Frees memory allocated by `LM_AssembleEx`.
+
+```c
+LM_API lm_void_t LM_CALL
+LM_FreePayload(lm_byte_t *payload);
+```
+
+<ParamField path="payload" type="lm_byte_t*" required>
+  The payload buffer that was allocated by `LM_AssembleEx`.
+</ParamField>
+
+---
+
+## Example (Rust)
+
+This example demonstrates using the assembler API to patch a function:
+
+```rust
+use libmem::*;
+
+fn godmode() -> Option<()> {
+    let game_process = find_process("game_linux64")?;
+    let client_module = find_module_ex(&game_process, "libclient.so")?;
+
+    let fn_update_health = sig_scan_ex(
+        &game_process,
+        "55 48 89 E5 66 B8 ?? ?? 48 8B 5D FC",
+        client_module.base,
+        client_module.size,
+    )?;
+    println!(
+        "[*] Signature scan result for 'update_health' function: {}",
+        fn_update_health
+    );
+
+    let shellcode = assemble_ex("mov rbx, 1337; mov [rdi], rbx; ret", Arch::X64, 0)?;
+    write_memory_ex(&game_process, fn_update_health + 8, &shellcode.as_slice())?;
+    println!("[*] Patched 'update_health' function to always set health to 1337!");
+
+    Some(())
+}
+
+fn main() {
+    godmode();
+}
+```
+
+---
+
+## lm_inst_t Structure
+
+The `lm_inst_t` structure represents a single instruction:
+
+```c
+typedef struct lm_inst_t {
+    lm_address_t address;        // Address of the instruction
+    lm_size_t    size;           // Size of the instruction in bytes
+    lm_byte_t    bytes[LM_INST_MAX]; // Raw instruction bytes (max 16 bytes)
+    lm_char_t    mnemonic[32];   // Instruction mnemonic (e.g., "mov")
+    lm_char_t    op_str[160];    // Operands string (e.g., "eax, ebx")
+} lm_inst_t;
+```

@@ -1,0 +1,332 @@
+---
+title: Architecture Support
+description: Understanding supported CPU architectures and architecture detection in libmem
+---
+
+libmem supports a wide range of CPU architectures through its assembly and disassembly capabilities. The `lm_arch_t` type defines the supported architecture variants.
+
+## Architecture Type
+
+The `lm_arch_t` is a 32-bit unsigned integer that represents different CPU architectures:
+
+```c
+typedef uint32_t lm_arch_t;
+```
+
+## Supported Architectures
+
+libmem supports architectures that are compatible with both the assembler (Keystone) and disassembler (Capstone).
+
+### Full Architecture Enum
+
+```c
+enum {
+    LM_ARCH_GENERIC = 0,
+    
+    /* ARM */
+    LM_ARCH_ARMV7,      // ARMv7
+    LM_ARCH_ARMV8,      // ARMv8
+    LM_ARCH_THUMBV7,    // ARMv7, thumb mode
+    LM_ARCH_THUMBV8,    // ARMv8, thumb mode
+
+    LM_ARCH_ARMV7EB,    // ARMv7, big endian
+    LM_ARCH_THUMBV7EB,  // ARMv7, big endian, thumb mode
+    LM_ARCH_ARMV8EB,    // ARMv8, big endian
+    LM_ARCH_THUMBV8EB,  // ARMv8, big endian, thumb mode
+
+    LM_ARCH_AARCH64,    // ARM64/AArch64
+
+    /* MIPS */
+    LM_ARCH_MIPS,       // Mips32
+    LM_ARCH_MIPS64,     // Mips64
+    LM_ARCH_MIPSEL,     // Mips32, little endian
+    LM_ARCH_MIPSEL64,   // Mips64, little endian
+
+    /* X86 */
+    LM_ARCH_X86_16,     // x86_16
+    LM_ARCH_X86,        // x86_32
+    LM_ARCH_X64,        // x86_64
+
+    /* PowerPC */
+    LM_ARCH_PPC32,      // PowerPC 32
+    LM_ARCH_PPC64,      // PowerPC 64
+    LM_ARCH_PPC64LE,    // PowerPC 64, little endian
+
+    /* SPARC */
+    LM_ARCH_SPARC,      // Sparc
+    LM_ARCH_SPARC64,    // Sparc64
+    LM_ARCH_SPARCEL,    // Sparc, little endian
+
+    /* SystemZ */
+    LM_ARCH_SYSZ,       // S390X
+
+    LM_ARCH_MAX,
+};
+```
+
+## Architecture Families
+
+### ARM Architecture Family
+
+ARM processors are common in mobile devices, embedded systems, and increasingly in desktop computers.
+
+| Architecture | Description | Typical Use Case |
+|--------------|-------------|------------------|
+| `LM_ARCH_ARMV7` | 32-bit ARMv7 | Older smartphones, embedded systems |
+| `LM_ARCH_ARMV8` | 32-bit ARMv8 | Modern 32-bit ARM devices |
+| `LM_ARCH_AARCH64` | 64-bit ARM64 | Modern smartphones, Apple Silicon, servers |
+| `LM_ARCH_THUMBV7` | ARMv7 Thumb mode | Code density optimization |
+| `LM_ARCH_THUMBV8` | ARMv8 Thumb mode | Code density optimization |
+
+<Info>
+Thumb mode is a compressed instruction set that provides better code density at the cost of some performance.
+</Info>
+
+### x86 Architecture Family
+
+The most common architecture for desktop and laptop computers.
+
+| Architecture | Description | Typical Use Case |
+|--------------|-------------|------------------|
+| `LM_ARCH_X86_16` | 16-bit x86 | Legacy DOS systems, bootloaders |
+| `LM_ARCH_X86` | 32-bit x86 (IA-32) | Older Windows/Linux systems, 32-bit applications |
+| `LM_ARCH_X64` | 64-bit x86-64 (AMD64) | Modern Windows/Linux/macOS systems |
+
+<Note>
+`LM_ARCH_X86` and `LM_ARCH_X64` are the most commonly used architectures in libmem for PC applications.
+</Note>
+
+### MIPS Architecture Family
+
+MIPS processors are used in embedded systems, routers, and some gaming consoles.
+
+| Architecture | Description |
+|--------------|-------------|
+| `LM_ARCH_MIPS` | 32-bit MIPS (big endian) |
+| `LM_ARCH_MIPS64` | 64-bit MIPS (big endian) |
+| `LM_ARCH_MIPSEL` | 32-bit MIPS (little endian) |
+| `LM_ARCH_MIPSEL64` | 64-bit MIPS (little endian) |
+
+### PowerPC Architecture Family
+
+PowerPC processors were used in older Macs and gaming consoles.
+
+| Architecture | Description |
+|--------------|-------------|
+| `LM_ARCH_PPC32` | 32-bit PowerPC |
+| `LM_ARCH_PPC64` | 64-bit PowerPC (big endian) |
+| `LM_ARCH_PPC64LE` | 64-bit PowerPC (little endian) |
+
+### SPARC Architecture Family
+
+SPARC processors are used primarily in enterprise servers.
+
+| Architecture | Description |
+|--------------|-------------|
+| `LM_ARCH_SPARC` | 32-bit SPARC |
+| `LM_ARCH_SPARC64` | 64-bit SPARC |
+| `LM_ARCH_SPARCEL` | SPARC (little endian) |
+
+### SystemZ Architecture
+
+| Architecture | Description |
+|--------------|-------------|
+| `LM_ARCH_SYSZ` | IBM System z (s390x) - mainframe architecture |
+
+## Detecting Current Architecture
+
+You can detect the current system architecture using `LM_GetArchitecture()`:
+
+```c
+lm_arch_t arch = LM_GetArchitecture();
+
+switch (arch) {
+    case LM_ARCH_X86:
+        printf("Running on 32-bit x86\n");
+        break;
+    case LM_ARCH_X64:
+        printf("Running on 64-bit x86-64\n");
+        break;
+    case LM_ARCH_AARCH64:
+        printf("Running on 64-bit ARM (AArch64)\n");
+        break;
+    default:
+        printf("Running on architecture: %d\n", arch);
+        break;
+}
+```
+
+## Architecture in Process Information
+
+The `lm_process_t` structure includes architecture information:
+
+```c
+lm_process_t process;
+LM_GetProcess(&process);
+
+printf("Process architecture: %d\n", process.arch);
+printf("Process bits: %zu\n", process.bits);
+```
+
+### Example: Detecting Process Architecture
+
+```c
+lm_process_t target;
+LM_FindProcess("game.exe", &target);
+
+if (target.arch == LM_ARCH_X64) {
+    printf("64-bit process detected\n");
+} else if (target.arch == LM_ARCH_X86) {
+    printf("32-bit process detected\n");
+}
+
+printf("Process is %zu-bit\n", target.bits);
+```
+
+## Using Architecture in Assembly/Disassembly
+
+When assembling or disassembling code, you must specify the target architecture.
+
+### Assembling for Specific Architecture
+
+```c
+lm_byte_t *payload;
+lm_size_t size;
+
+// Assemble x86-64 code
+size = LM_AssembleEx("mov rax, rbx; ret", 
+                     LM_ARCH_X64, 
+                     0x400000,
+                     &payload);
+
+if (size > 0) {
+    printf("Assembled %zu bytes of x64 code\n", size);
+    LM_FreePayload(payload);
+}
+```
+
+### Disassembling with Architecture
+
+```c
+lm_inst_t *instructions;
+lm_size_t count;
+
+// Disassemble ARM64 code
+count = LM_DisassembleEx(0x1000, 
+                         LM_ARCH_AARCH64,
+                         100,    // max size
+                         10,     // instruction count
+                         0x1000, // runtime address
+                         &instructions);
+
+if (count > 0) {
+    for (size_t i = 0; i < count; i++) {
+        printf("%s %s\n", instructions[i].mnemonic, instructions[i].op_str);
+    }
+    LM_FreeInstructions(instructions);
+}
+```
+
+## Endianness Considerations
+
+Some architectures support both big-endian and little-endian modes:
+
+- **Little Endian**: Least significant byte first (x86, ARM typically)
+- **Big Endian**: Most significant byte first (MIPS, SPARC, PowerPC traditionally)
+
+| Architecture | Endianness |
+|--------------|------------|
+| `LM_ARCH_X86`, `LM_ARCH_X64` | Little Endian |
+| `LM_ARCH_ARMV7`, `LM_ARCH_ARMV8`, `LM_ARCH_AARCH64` | Little Endian (typically) |
+| `LM_ARCH_ARMV7EB`, `LM_ARCH_ARMV8EB` | Big Endian |
+| `LM_ARCH_MIPS`, `LM_ARCH_MIPS64` | Big Endian |
+| `LM_ARCH_MIPSEL`, `LM_ARCH_MIPSEL64` | Little Endian |
+| `LM_ARCH_PPC64` | Big Endian |
+| `LM_ARCH_PPC64LE` | Little Endian |
+
+<Info>
+When working with multi-byte values across architectures, always be aware of endianness to avoid byte order issues.
+</Info>
+
+## Architecture-Specific Features
+
+### x86/x64 Features
+
+- Rich instruction set with many addressing modes
+- Variable-length instructions (1-15 bytes)
+- CISC (Complex Instruction Set Computer) design
+- Backward compatibility across generations
+
+### ARM Features
+
+- Fixed-length instructions (32-bit in ARM mode, 16-bit in Thumb)
+- Load/store architecture
+- RISC (Reduced Instruction Set Computer) design
+- Conditional execution of most instructions
+
+### MIPS Features
+
+- Fixed-length 32-bit instructions
+- Pure RISC design
+- Delay slots after branches
+- Simple, regular instruction format
+
+## Getting System Information
+
+libmem provides functions to query system architecture:
+
+```c
+// Get current process bits (32 or 64)
+lm_size_t process_bits = LM_GetBits();
+printf("Process bits: %zu\n", process_bits);
+
+// Get system architecture bits
+lm_size_t system_bits = LM_GetSystemBits();
+printf("System bits: %zu\n", system_bits);
+
+// Get architecture type
+lm_arch_t arch = LM_GetArchitecture();
+printf("Architecture: %d\n", arch);
+```
+
+<Note>
+A 32-bit process can run on a 64-bit system, so `LM_GetBits()` and `LM_GetSystemBits()` may return different values.
+</Note>
+
+## Cross-Architecture Development
+
+When developing for multiple architectures:
+
+1. **Test on target architecture**: Always test on the actual hardware when possible
+2. **Use architecture-specific code paths**: Branch based on detected architecture
+3. **Mind instruction sizes**: Different architectures have different instruction lengths
+4. **Consider alignment**: Some architectures require aligned memory access
+5. **Handle endianness**: Be careful when reading/writing multi-byte values
+
+### Example: Architecture-Specific Code
+
+```c
+lm_arch_t arch = LM_GetArchitecture();
+lm_byte_t *payload;
+lm_size_t size;
+
+switch (arch) {
+    case LM_ARCH_X86:
+        size = LM_AssembleEx("push ebp; mov ebp, esp", arch, 0, &payload);
+        break;
+    case LM_ARCH_X64:
+        size = LM_AssembleEx("push rbp; mov rbp, rsp", arch, 0, &payload);
+        break;
+    case LM_ARCH_AARCH64:
+        size = LM_AssembleEx("stp x29, x30, [sp, #-16]!", arch, 0, &payload);
+        break;
+    default:
+        printf("Unsupported architecture\n");
+        return;
+}
+
+if (size > 0) {
+    printf("Assembled %zu bytes\n", size);
+    LM_FreePayload(payload);
+}
+```

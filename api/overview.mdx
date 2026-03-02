@@ -1,0 +1,97 @@
+---
+title: 'API Overview'
+description: 'Complete overview of libmem API categories and naming conventions'
+---
+
+libmem provides a comprehensive set of APIs for memory manipulation, process management, and code hooking across multiple categories. All APIs follow consistent naming conventions and patterns for both internal and external (cross-process) operations.
+
+## API Categories
+
+The libmem API is organized into the following categories:
+
+<CardGroup cols={2}>
+  <Card title="Process APIs" icon="microchip" href="/api/process">
+    Enumerate, find, and manage processes on the system
+  </Card>
+  
+  <Card title="Thread APIs" icon="timeline" href="/api/thread">
+    Enumerate and retrieve information about process threads
+  </Card>
+  
+  <Card title="Module APIs" icon="cube" href="/api/module">
+    Load, unload, find, and enumerate modules in processes
+  </Card>
+  
+  <Card title="Symbol APIs" icon="code" href="/api/symbol">
+    Find and enumerate symbols in modules with demangling support
+  </Card>
+  
+  <Card title="Memory Segment APIs" icon="layer-group" href="/api/segment">
+    Enumerate and find memory segments in process address space
+  </Card>
+  
+  <Card title="Memory APIs" icon="memory" href="/api/memory">
+    Read, write, allocate, protect, and manage memory
+  </Card>
+  
+  <Card title="Scanning APIs" icon="magnifying-glass" href="/api/scanning">
+    Search memory for patterns, signatures, and data
+  </Card>
+  
+  <Card title="Assembler APIs" icon="wrench" href="/api/assembler">
+    Assemble and disassemble instructions for multiple architectures
+  </Card>
+  
+  <Card title="Hooking APIs" icon="link" href="/api/hooking">
+    Hook and unhook functions with code detours and VMT hooks
+  </Card>
+</CardGroup>
+
+## Naming Conventions
+
+<Info>
+  **"Ex" Suffix Convention**
+  
+  APIs with the "Ex" suffix operate on external processes (cross-process operations). APIs without the suffix operate on the current process.
+  
+  For example:
+  - `LM_ReadMemory()` reads memory from the current process
+  - `LM_ReadMemoryEx()` reads memory from a specified external process
+</Info>
+
+### Function Patterns
+
+All libmem functions follow these patterns:
+
+- **Prefix**: All functions start with `LM_`
+- **Naming**: Functions use PascalCase (e.g., `LM_FindProcess`, `LM_EnumModules`)
+- **External Operations**: Functions with `Ex` suffix require a `lm_process_t *process` parameter as the first argument
+- **Callbacks**: Enumeration functions take callback functions that return `LM_TRUE` to continue or `LM_FALSE` to stop
+
+### Type Conventions
+
+All libmem types follow these patterns:
+
+- **Prefix**: All types start with `lm_`
+- **Naming**: Types use snake_case and end with `_t` (e.g., `lm_process_t`, `lm_module_t`)
+- **Consistency**: The same types are used across both internal and external operations
+
+## Return Values
+
+Most libmem functions follow these return conventions:
+
+- **Boolean Operations**: Return `LM_TRUE` on success, `LM_FALSE` on failure
+- **Address Operations**: Return a valid address on success, `LM_ADDRESS_BAD` on failure
+- **Size Operations**: Return the size/count on success, `0` on failure
+- **Pointer Operations**: Return a valid pointer on success, `NULL` on failure
+
+## Getting Started
+
+To get started with the libmem API:
+
+1. Choose the category that matches your use case
+2. Review the available functions in that category
+3. Check whether you need the internal or external (`Ex`) version
+4. Refer to the detailed documentation for parameter and return value information
+
+Each API category page provides detailed documentation for all functions, including parameters, return values, and usage examples.

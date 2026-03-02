@@ -1,0 +1,399 @@
+---
+title: Memory Scanning
+description: Learn how to scan memory for patterns, signatures, and data values
+---
+
+This guide covers memory scanning techniques in libmem, including pattern scanning, signature scanning, and data scanning to locate specific values or byte sequences in memory.
+
+## Types of Memory Scans
+
+libmem provides three types of memory scanning functions:
+
+- **Data Scan** (`LM_DataScan`) - Scans for exact byte sequences
+- **Pattern Scan** (`LM_PatternScan`) - Scans with wildcards using a mask
+- **Signature Scan** (`LM_SigScan`) - Scans using IDA-style signatures with `??` wildcards
+
+Each function has an `Ex` variant for scanning remote processes.
+
+## Data Scanning
+
+Use `LM_DataScan` to find exact byte sequences in memory.
+
+<Steps>
+
+<Step title="Prepare the data to search for">
+Create a byte array with the exact data you want to find:
+
+```c
+lm_byte_t target_data[] = { 0xDE, 0xAD, 0xBE, 0xEF };
+```
+</Step>
+
+<Step title="Define the scan region">
+Specify where to search in memory:
+
+```c
+lm_address_t start_addr = 0x400000;  // Start of scan region
+lm_size_t scan_size = 0x100000;      // Size of scan region (1MB)
+```
+</Step>
+
+<Step title="Perform the scan">
+Call `LM_DataScan` to find the data:
+
+```c
+lm_address_t result = LM_DataScan(
+    target_data,
+    sizeof(target_data),
+    start_addr,
+    scan_size
+);
+
+if (result != LM_ADDRESS_BAD) {
+    printf("Found data at: 0x%lX\n", result);
+} else {
+    printf("Data not found\n");
+}
+```
+</Step>
+
+</Steps>
+
+### Scanning Remote Process Memory
+
+Use `LM_DataScanEx` to scan a remote process:
+
+```c
+lm_process_t process;
+LM_FindProcess("game.exe", &process);
+
+// Find a module to scan
+lm_module_t game_mod;
+LM_FindModuleEx(&process, "game.dll", &game_mod);
+
+// Search for data in the module
+lm_byte_t search_bytes[] = { 0x48, 0x89, 0x5C, 0x24 };
+lm_address_t result = LM_DataScanEx(
+    &process,
+    search_bytes,
+    sizeof(search_bytes),
+    game_mod.base,
+    game_mod.size
+);
+
+if (result != LM_ADDRESS_BAD) {
+    printf("Found at offset: 0x%lX\n", result - game_mod.base);
+}
+```
+
+## Pattern Scanning with Masks
+
+Use `LM_PatternScan` when you need wildcards in your search pattern.
+
+<Steps>
+
+<Step title="Create a pattern and mask">
+The mask uses `x` for exact matches and `?` for wildcards:
+
+```c
+lm_byte_t pattern[] = { 0x55, 0x48, 0x89, 0xE5, 0x00, 0x00 };
+lm_string_t mask = "xxxx??";
+```
+
+This pattern matches:
+- `0x55` (exact)
+- `0x48` (exact)
+- `0x89` (exact)
+- `0xE5` (exact)
+- Any byte (wildcard)
+- Any byte (wildcard)
+</Step>
+
+<Step title="Scan for the pattern">
+Perform the pattern scan:
+
+```c
+lm_address_t start_addr = 0x400000;
+lm_size_t scan_size = 0x100000;
+
+lm_address_t result = LM_PatternScan(
+    pattern,
+    mask,
+    start_addr,
+    scan_size
+);
+
+if (result != LM_ADDRESS_BAD) {
+    printf("Pattern found at: 0x%lX\n", result);
+}
+```
+</Step>
+
+</Steps>
+
+### Pattern Scanning Example
+
+Searching for a function prologue with wildcards:
+
+```c
+// Find: push rbp; mov rbp, rsp; sub rsp, ??
+lm_byte_t pattern[] = {
+    0x55,           // push rbp
+    0x48, 0x89, 0xE5,  // mov rbp, rsp
+    0x48, 0x83, 0xEC, 0x00  // sub rsp, ??
+};
+lm_string_t mask = "xxxxxxx?";
+
+lm_module_t mod;
+LM_FindModule("myapp.exe", &mod);
+
+lm_address_t func_addr = LM_PatternScan(
+    pattern,
+    mask,
+    mod.base,
+    mod.size
+);
+```
+
+### Remote Process Pattern Scanning
+
+```c
+lm_process_t process;
+LM_FindProcess("game.exe", &process);
+
+lm_module_t client_mod;
+LM_FindModuleEx(&process, "client.dll", &client_mod);
+
+lm_byte_t pattern[] = { 0x8B, 0x45, 0x00, 0x89, 0x00, 0x00 };
+lm_string_t mask = "xx?x??";
+
+lm_address_t result = LM_PatternScanEx(
+    &process,
+    pattern,
+    mask,
+    client_mod.base,
+    client_mod.size
+);
+```
+
+## Signature Scanning
+
+Use `LM_SigScan` for IDA-style signatures (most convenient method).
+
+<Steps>
+
+<Step title="Create an IDA-style signature">
+Use hexadecimal bytes with `??` for wildcards:
+
+```c
+lm_string_t signature = "55 48 89 E5 48 83 EC ?? 48 89 5C 24";
+```
+</Step>
+
+<Step title="Scan for the signature">
+Perform the signature scan:
+
+```c
+lm_module_t mod;
+LM_FindModule("game.dll", &mod);
+
+lm_address_t result = LM_SigScan(
+    signature,
+    mod.base,
+    mod.size
+);
+
+if (result != LM_ADDRESS_BAD) {
+    printf("Signature found at: 0x%lX\n", result);
+    printf("Offset from base: 0x%lX\n", result - mod.base);
+}
+```
+</Step>
+
+</Steps>
+
+### Signature Scanning Examples
+
+Searching for a specific function:
+
+```c
+// IDA signature for update_health function
+lm_string_t sig = "55 48 89 E5 66 B8 ?? ?? 48 8B 5D FC";
+
+lm_process_t process;
+LM_FindProcess("game_linux64", &process);
+
+lm_module_t client_mod;
+LM_FindModuleEx(&process, "libclient.so", &client_mod);
+
+lm_address_t update_health_fn = LM_SigScanEx(
+    &process,
+    sig,
+    client_mod.base,
+    client_mod.size
+);
+
+if (update_health_fn != LM_ADDRESS_BAD) {
+    printf("Found update_health at: 0x%lX\n", update_health_fn);
+}
+```
+
+Scanning for multiple signatures:
+
+```c
+typedef struct {
+    lm_string_t name;
+    lm_string_t signature;
+    lm_address_t address;
+} function_sig_t;
+
+function_sig_t functions[] = {
+    { "TakeDamage", "55 48 89 E5 48 83 EC 20", LM_ADDRESS_BAD },
+    { "GiveWeapon", "48 89 5C 24 ?? 57 48 83 EC 20", LM_ADDRESS_BAD },
+    { "SetHealth", "40 53 48 83 EC 20 8B D9", LM_ADDRESS_BAD }
+};
+
+lm_module_t game_mod;
+LM_FindModule("game.dll", &game_mod);
+
+for (int i = 0; i < 3; i++) {
+    functions[i].address = LM_SigScan(
+        functions[i].signature,
+        game_mod.base,
+        game_mod.size
+    );
+    
+    if (functions[i].address != LM_ADDRESS_BAD) {
+        printf("%s: 0x%lX\n", functions[i].name, functions[i].address);
+    } else {
+        printf("%s: Not found\n", functions[i].name);
+    }
+}
+```
+
+## Scanning Specific Memory Segments
+
+You can scan specific memory segments by enumerating them first:
+
+```c
+typedef struct {
+    lm_string_t signature;
+    lm_address_t result;
+} scan_data_t;
+
+lm_bool_t scan_segment(lm_segment_t *segment, lm_void_t *arg)
+{
+    scan_data_t *data = (scan_data_t *)arg;
+    
+    // Only scan executable segments
+    if (segment->prot & LM_PROT_X) {
+        lm_address_t addr = LM_SigScan(
+            data->signature,
+            segment->base,
+            segment->size
+        );
+        
+        if (addr != LM_ADDRESS_BAD) {
+            data->result = addr;
+            return LM_FALSE;  // Stop scanning
+        }
+    }
+    
+    return LM_TRUE;
+}
+
+scan_data_t scan_data = {
+    .signature = "DE AD BE EF ?? ?? 13 37",
+    .result = LM_ADDRESS_BAD
+};
+
+LM_EnumSegments(scan_segment, &scan_data);
+
+if (scan_data.result != LM_ADDRESS_BAD) {
+    printf("Found signature at: 0x%lX\n", scan_data.result);
+}
+```
+
+## Complete Example
+
+Here's a complete example combining different scanning techniques:
+
+```c
+#include <libmem/libmem.h>
+#include <stdio.h>
+
+typedef struct {
+    const char *name;
+    lm_string_t signature;
+} game_function_t;
+
+int main()
+{
+    lm_process_t process;
+    
+    // Find the game process
+    if (!LM_FindProcess("shooter.exe", &process)) {
+        printf("Game not found\n");
+        return 1;
+    }
+    
+    // Find the client module
+    lm_module_t client;
+    if (!LM_FindModuleEx(&process, "client.dll", &client)) {
+        printf("Client module not found\n");
+        return 1;
+    }
+    
+    printf("Scanning client.dll (base: 0x%lX, size: 0x%zX)\n",
+           client.base, client.size);
+    
+    // Find multiple functions using signature scanning
+    game_function_t functions[] = {
+        { "UpdateHealth", "55 48 89 E5 66 B8 ?? ?? 48 8B 5D FC" },
+        { "GodMode", "40 53 48 83 EC 20 8B D9 E8 ?? ?? ?? ??" },
+        { "GetAmmo", "48 89 5C 24 ?? 57 48 83 EC 20 48 8B DA" }
+    };
+    
+    for (int i = 0; i < 3; i++) {
+        lm_address_t addr = LM_SigScanEx(
+            &process,
+            functions[i].signature,
+            client.base,
+            client.size
+        );
+        
+        if (addr != LM_ADDRESS_BAD) {
+            printf("[+] %s: 0x%lX (offset: +0x%lX)\n",
+                   functions[i].name,
+                   addr,
+                   addr - client.base);
+        } else {
+            printf("[-] %s: Not found\n", functions[i].name);
+        }
+    }
+    
+    // Search for a specific data pattern
+    lm_byte_t magic_bytes[] = { 0xDE, 0xAD, 0xBE, 0xEF };
+    lm_address_t magic_addr = LM_DataScanEx(
+        &process,
+        magic_bytes,
+        sizeof(magic_bytes),
+        client.base,
+        client.size
+    );
+    
+    if (magic_addr != LM_ADDRESS_BAD) {
+        printf("[+] Found magic bytes at: 0x%lX\n", magic_addr);
+    }
+    
+    return 0;
+}
+```
+
+<Note>
+Memory scanning can be CPU-intensive. For best performance:
+- Scan the smallest memory region possible
+- Use specific modules instead of scanning entire process memory
+- Cache scan results when possible
+- Use signature scanning (LM_SigScan) for the most readable patterns
+</Note>

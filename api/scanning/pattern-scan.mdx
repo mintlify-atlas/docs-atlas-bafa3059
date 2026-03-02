@@ -1,0 +1,114 @@
+---
+title: Pattern Scan
+description: Scan memory for byte patterns with wildcards
+---
+
+Pattern scan functions search for byte patterns in memory using a mask to specify which bytes should match exactly and which can be wildcards. This is useful when you know part of a byte sequence but some bytes may vary.
+
+## LM_PatternScan
+
+Searches for a specific pattern in memory based on a given mask in the current process.
+
+```c
+lm_address_t LM_PatternScan(
+    lm_bytearray_t pattern,
+    lm_string_t    mask,
+    lm_address_t   address,
+    lm_size_t      scansize
+);
+```
+
+<ParamField path="pattern" type="lm_bytearray_t" required>
+  The pattern to be searched for in memory.
+</ParamField>
+
+<ParamField path="mask" type="lm_string_t" required>
+  The pattern mask used for scanning memory. It is used to specify which bytes in the pattern should be matched against the memory content. The mask can contain characters such as `?` which act as wildcards, allowing any byte to be matched. You can also use `x` to have an exact match.
+</ParamField>
+
+<ParamField path="address" type="lm_address_t" required>
+  The starting memory address where the scanning operation will begin. The function will scan the memory starting from this address to find the pattern match.
+</ParamField>
+
+<ParamField path="scansize" type="lm_size_t" required>
+  The size of the memory region to scan starting from the specified `address`. It determines the range within which the function will search for the specified pattern based on the provided `pattern` and `mask`.
+</ParamField>
+
+### Returns
+
+Returns the memory address where a match for the given pattern and mask is found within the specified scan size starting from the provided address. If no match is found or if an error occurs, returns `LM_ADDRESS_BAD`.
+
+---
+
+## LM_PatternScanEx
+
+Searches for a specific pattern in memory in a remote process based on a mask.
+
+```c
+lm_address_t LM_PatternScanEx(
+    const lm_process_t *process,
+    lm_bytearray_t      pattern,
+    lm_string_t         mask,
+    lm_address_t        address,
+    lm_size_t           scansize
+);
+```
+
+<ParamField path="process" type="const lm_process_t*" required>
+  The process whose memory will be scanned.
+</ParamField>
+
+<ParamField path="pattern" type="lm_bytearray_t" required>
+  The pattern to be searched for in memory.
+</ParamField>
+
+<ParamField path="mask" type="lm_string_t" required>
+  The pattern mask used for scanning memory. It is used to specify which bytes in the pattern should be matched against the memory content. The mask can contain characters such as `?` which act as wildcards, allowing any byte to be matched. You can also use `x` to have an exact match.
+</ParamField>
+
+<ParamField path="address" type="lm_address_t" required>
+  The starting memory address where the scanning operation will begin. The function will scan the memory starting from this address to find the pattern match.
+</ParamField>
+
+<ParamField path="scansize" type="lm_size_t" required>
+  The size of the memory region to scan starting from the specified `address`. It determines the range within which the function will search for the specified pattern based on the provided `pattern` and `mask`.
+</ParamField>
+
+### Returns
+
+Returns the memory address where a match for the given pattern and mask is found within the specified scan size starting from the provided address. If no match is found or if an error occurs, returns `LM_ADDRESS_BAD`.
+
+---
+
+## Example (C)
+
+```c
+#include <libmem/libmem.h>
+
+int main()
+{
+    lm_module_t game_mod;
+    lm_address_t scan_result;
+    lm_byte_t pattern[] = { 0x55, 0x48, 0x89, 0xE5, 0x00, 0x00 };
+    lm_string_t mask = "xxxx??";
+
+    LM_FindModule("game.dll", &game_mod);
+    
+    // Scan for pattern with wildcards
+    // This will match 55 48 89 E5 ?? ?? where ?? can be any byte
+    scan_result = LM_PatternScan(
+        pattern,
+        mask,
+        game_mod.base,
+        game_mod.size
+    );
+
+    if (scan_result != LM_ADDRESS_BAD) {
+        printf("[*] Found pattern at: %p\n", scan_result);
+    }
+
+    return 0;
+}
+```
+
+This example demonstrates scanning for a byte pattern where the first 4 bytes must match exactly (`x`) and the last 2 bytes can be anything (`?`).

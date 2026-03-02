@@ -1,0 +1,247 @@
+---
+title: 'LM_EnumSegments'
+description: 'Enumerate memory segments in a process'
+---
+
+## LM_EnumSegments
+
+Enumerates the memory segments of the current process and invokes a callback function for each segment.
+
+### Signature
+
+```c
+LM_API lm_bool_t LM_CALL
+LM_EnumSegments(lm_bool_t (LM_CALL *callback)(lm_segment_t *segment,
+                                              lm_void_t    *arg),
+                lm_void_t          *arg);
+```
+
+### Parameters
+
+<ParamField path="callback" type="function pointer" required>
+  A function pointer that will receive each segment in the enumeration and an extra argument.
+  The callback function should return `LM_TRUE` to continue the enumeration or `LM_FALSE` to stop it.
+  
+  **Callback Signature:**
+  ```c
+  lm_bool_t callback(lm_segment_t *segment, lm_void_t *arg)
+  ```
+</ParamField>
+
+<ParamField path="arg" type="lm_void_t *">
+  A pointer to user-defined data that can be passed to the callback function.
+  It allows you to provide additional information or context to the callback function when iterating over segments.
+</ParamField>
+
+### Return Value
+
+Returns `LM_TRUE` if the enumeration was successful, or `LM_FALSE` otherwise.
+
+### Segment Structure
+
+The `lm_segment_t` structure contains information about a memory segment:
+
+```c
+typedef struct lm_segment_t {
+    lm_address_t base;  // Base address of the segment
+    lm_address_t end;   // End address of the segment
+    lm_size_t    size;  // Size of the segment in bytes
+    lm_prot_t    prot;  // Memory protection flags
+} lm_segment_t;
+```
+
+#### Memory Protection Flags
+
+The `prot` field can be a combination of the following flags:
+
+- `LM_PROT_NONE` - No protection
+- `LM_PROT_R` - Read permission
+- `LM_PROT_W` - Write permission
+- `LM_PROT_X` - Execute permission
+- `LM_PROT_XR` - Execute and read permissions
+- `LM_PROT_XW` - Execute and write permissions
+- `LM_PROT_RW` - Read and write permissions
+- `LM_PROT_XRW` - Execute, read, and write permissions
+
+### Example
+
+```c
+#include <libmem/libmem.h>
+#include <stdio.h>
+
+lm_bool_t segment_callback(lm_segment_t *segment, lm_void_t *arg)
+{
+    int *count = (int *)arg;
+    
+    printf("Segment %d:\n", *count);
+    printf("  Base:  0x%lx\n", segment->base);
+    printf("  End:   0x%lx\n", segment->end);
+    printf("  Size:  %zu bytes\n", segment->size);
+    printf("  Prot:  0x%x\n", segment->prot);
+    
+    (*count)++;
+    
+    // Continue enumeration
+    return LM_TRUE;
+}
+
+int main()
+{
+    int segment_count = 0;
+    
+    if (LM_EnumSegments(segment_callback, &segment_count)) {
+        printf("Total segments: %d\n", segment_count);
+    } else {
+        printf("Failed to enumerate segments\n");
+    }
+    
+    return 0;
+}
+```
+
+### Example: Find Executable Segments
+
+```c
+#include <libmem/libmem.h>
+#include <stdio.h>
+
+lm_bool_t find_executable_callback(lm_segment_t *segment, lm_void_t *arg)
+{
+    // Check if segment is executable
+    if (segment->prot & LM_PROT_X) {
+        printf("Executable segment found:\n");
+        printf("  Address range: 0x%lx - 0x%lx\n", segment->base, segment->end);
+        printf("  Size: %zu bytes\n", segment->size);
+    }
+    
+    return LM_TRUE;
+}
+
+int main()
+{
+    LM_EnumSegments(find_executable_callback, NULL);
+    return 0;
+}
+```
+
+---
+
+## LM_EnumSegmentsEx
+
+Enumerates the memory segments of a given process and invokes a callback function for each segment.
+
+### Signature
+
+```c
+LM_API lm_bool_t LM_CALL
+LM_EnumSegmentsEx(const lm_process_t *process,
+                  lm_bool_t (LM_CALL *callback)(lm_segment_t *segment,
+                                                lm_void_t    *arg),
+                  lm_void_t          *arg);
+```
+
+### Parameters
+
+<ParamField path="process" type="const lm_process_t *" required>
+  A pointer to a structure containing information about the process whose segments will be enumerated.
+</ParamField>
+
+<ParamField path="callback" type="function pointer" required>
+  A function pointer that will receive each segment in the enumeration and an extra argument.
+  The callback function should return `LM_TRUE` to continue the enumeration or `LM_FALSE` to stop it.
+  
+  **Callback Signature:**
+  ```c
+  lm_bool_t callback(lm_segment_t *segment, lm_void_t *arg)
+  ```
+</ParamField>
+
+<ParamField path="arg" type="lm_void_t *">
+  A pointer to user-defined data that can be passed to the callback function.
+  It allows you to provide additional information or context to the callback function when iterating over segments.
+</ParamField>
+
+### Return Value
+
+Returns `LM_TRUE` if the enumeration was successful, or `LM_FALSE` otherwise.
+
+### Example
+
+```c
+#include <libmem/libmem.h>
+#include <stdio.h>
+
+typedef struct {
+    size_t total_size;
+    int count;
+} segment_stats_t;
+
+lm_bool_t stats_callback(lm_segment_t *segment, lm_void_t *arg)
+{
+    segment_stats_t *stats = (segment_stats_t *)arg;
+    
+    stats->total_size += segment->size;
+    stats->count++;
+    
+    return LM_TRUE;
+}
+
+int main()
+{
+    lm_process_t process;
+    segment_stats_t stats = {0, 0};
+    
+    // Find a process by name
+    if (!LM_FindProcess("target.exe", &process)) {
+        printf("Failed to find process\n");
+        return 1;
+    }
+    
+    // Enumerate segments in the target process
+    if (LM_EnumSegmentsEx(&process, stats_callback, &stats)) {
+        printf("Process: %s\n", process.name);
+        printf("Total segments: %d\n", stats.count);
+        printf("Total memory: %zu bytes\n", stats.total_size);
+    } else {
+        printf("Failed to enumerate segments\n");
+    }
+    
+    return 0;
+}
+```
+
+### Example: Find Writable Segments in Remote Process
+
+```c
+#include <libmem/libmem.h>
+#include <stdio.h>
+
+lm_bool_t find_writable_callback(lm_segment_t *segment, lm_void_t *arg)
+{
+    // Check if segment is writable
+    if (segment->prot & LM_PROT_W) {
+        printf("Writable segment: 0x%lx - 0x%lx (%zu bytes)\n",
+               segment->base, segment->end, segment->size);
+    }
+    
+    return LM_TRUE;
+}
+
+int main()
+{
+    lm_process_t process;
+    
+    if (LM_FindProcess("game.exe", &process)) {
+        printf("Enumerating writable segments in %s:\n", process.name);
+        LM_EnumSegmentsEx(&process, find_writable_callback, NULL);
+    }
+    
+    return 0;
+}
+```
+
+## See Also
+
+- [LM_FindSegment](/api/segment/find-segment) - Find a specific memory segment by address
+- [LM_EnumModules](/api/module/enum-modules) - Enumerate loaded modules
+- [LM_ReadMemory](/api/memory/read-memory) - Read memory from a segment

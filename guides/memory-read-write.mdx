@@ -1,0 +1,376 @@
+---
+title: Memory Read/Write
+description: Learn how to read and write memory in both the current process and remote processes
+---
+
+This guide covers reading and writing memory using libmem, including basic read/write operations, working with remote processes, and handling memory protection.
+
+## Reading Memory
+
+The `LM_ReadMemory` function reads memory from the current process, while `LM_ReadMemoryEx` reads from a remote process.
+
+### Reading from Current Process
+
+<Steps>
+
+<Step title="Prepare a buffer">
+Allocate a buffer to store the data you want to read:
+
+```c
+int health;
+lm_address_t health_addr = 0x12345678;
+```
+</Step>
+
+<Step title="Read the memory">
+Use `LM_ReadMemory` to read data into your buffer:
+
+```c
+lm_size_t bytes_read = LM_ReadMemory(health_addr, (lm_byte_t *)&health, sizeof(health));
+
+if (bytes_read == sizeof(health)) {
+    printf("Health: %d\n", health);
+} else {
+    printf("Failed to read memory (read %zu bytes)\n", bytes_read);
+}
+```
+</Step>
+
+</Steps>
+
+### Reading from Remote Process
+
+<Steps>
+
+<Step title="Get the target process">
+First, obtain a reference to the target process:
+
+```c
+lm_process_t process;
+if (!LM_FindProcess("game.exe", &process)) {
+    printf("Process not found\n");
+    return;
+}
+```
+</Step>
+
+<Step title="Read from the process">
+Use `LM_ReadMemoryEx` to read from the remote process:
+
+```c
+int health;
+lm_address_t health_addr = 0x12345678;
+
+lm_size_t bytes_read = LM_ReadMemoryEx(
+    &process,
+    health_addr,
+    (lm_byte_t *)&health,
+    sizeof(health)
+);
+
+if (bytes_read == sizeof(health)) {
+    printf("Player health: %d\n", health);
+}
+```
+</Step>
+
+</Steps>
+
+### Reading Arrays and Structures
+
+You can read complex data structures:
+
+```c
+typedef struct {
+    float x, y, z;
+} Vector3;
+
+Vector3 position;
+lm_address_t pos_addr = 0x12345678;
+
+lm_size_t bytes_read = LM_ReadMemory(
+    pos_addr,
+    (lm_byte_t *)&position,
+    sizeof(Vector3)
+);
+
+if (bytes_read == sizeof(Vector3)) {
+    printf("Position: (%.2f, %.2f, %.2f)\n", position.x, position.y, position.z);
+}
+```
+
+## Writing Memory
+
+The `LM_WriteMemory` function writes memory to the current process, while `LM_WriteMemoryEx` writes to a remote process.
+
+### Writing to Current Process
+
+<Steps>
+
+<Step title="Prepare your data">
+Create the data you want to write:
+
+```c
+int new_health = 100;
+lm_address_t health_addr = 0x12345678;
+```
+</Step>
+
+<Step title="Write the memory">
+Use `LM_WriteMemory` to write data:
+
+```c
+lm_size_t bytes_written = LM_WriteMemory(
+    health_addr,
+    (lm_bytearray_t)&new_health,
+    sizeof(new_health)
+);
+
+if (bytes_written == sizeof(new_health)) {
+    printf("Successfully wrote health value\n");
+} else {
+    printf("Failed to write memory (wrote %zu bytes)\n", bytes_written);
+}
+```
+</Step>
+
+</Steps>
+
+### Writing to Remote Process
+
+<Steps>
+
+<Step title="Get the target process">
+Obtain a reference to the target process:
+
+```c
+lm_process_t process;
+if (!LM_FindProcess("game.exe", &process)) {
+    printf("Process not found\n");
+    return;
+}
+```
+</Step>
+
+<Step title="Write to the process">
+Use `LM_WriteMemoryEx` to write to the remote process:
+
+```c
+int god_mode = 1;
+lm_address_t godmode_addr = 0x12345678;
+
+lm_size_t bytes_written = LM_WriteMemoryEx(
+    &process,
+    godmode_addr,
+    (lm_bytearray_t)&god_mode,
+    sizeof(god_mode)
+);
+
+if (bytes_written == sizeof(god_mode)) {
+    printf("God mode enabled!\n");
+}
+```
+</Step>
+
+</Steps>
+
+### Writing Byte Arrays
+
+You can write raw byte arrays:
+
+```c
+lm_byte_t nop_bytes[] = { 0x90, 0x90, 0x90, 0x90, 0x90 }; // 5 NOPs
+lm_address_t patch_addr = 0x12345678;
+
+lm_size_t bytes_written = LM_WriteMemory(
+    patch_addr,
+    nop_bytes,
+    sizeof(nop_bytes)
+);
+
+if (bytes_written == sizeof(nop_bytes)) {
+    printf("Successfully patched %zu bytes\n", bytes_written);
+}
+```
+
+## Setting Memory to a Value
+
+Use `LM_SetMemory` to fill a memory region with a specific byte value:
+
+```c
+// Clear a 1KB buffer with zeros
+lm_address_t buffer_addr = 0x12345678;
+lm_size_t buffer_size = 1024;
+
+lm_size_t bytes_set = LM_SetMemory(buffer_addr, 0x00, buffer_size);
+
+if (bytes_set == buffer_size) {
+    printf("Buffer cleared\n");
+}
+```
+
+For remote processes, use `LM_SetMemoryEx`:
+
+```c
+lm_process_t process;
+LM_FindProcess("game.exe", &process);
+
+// Fill memory with 0xCC (INT3/breakpoint)
+lm_size_t bytes_set = LM_SetMemoryEx(&process, 0x12345678, 0xCC, 100);
+```
+
+## Working with Memory Protection
+
+Sometimes you need to change memory protection flags before reading or writing.
+
+<Steps>
+
+<Step title="Change protection flags">
+Use `LM_ProtMemory` to change protection flags:
+
+```c
+lm_address_t code_addr = 0x12345678;
+lm_prot_t old_prot;
+
+// Make memory readable, writable, and executable
+if (LM_ProtMemory(code_addr, 100, LM_PROT_XRW, &old_prot)) {
+    printf("Protection changed successfully\n");
+}
+```
+</Step>
+
+<Step title="Write your data">
+Now you can safely write to the memory:
+
+```c
+lm_byte_t patch[] = { 0xC3 }; // RET instruction
+LM_WriteMemory(code_addr, patch, sizeof(patch));
+```
+</Step>
+
+<Step title="Restore protection (optional)">
+Restore the original protection flags:
+
+```c
+lm_prot_t unused;
+LM_ProtMemory(code_addr, 100, old_prot, &unused);
+```
+</Step>
+
+</Steps>
+
+### Protection Flags
+
+Available protection flags:
+- `LM_PROT_NONE` - No access
+- `LM_PROT_R` - Read
+- `LM_PROT_W` - Write
+- `LM_PROT_X` - Execute
+- `LM_PROT_RW` - Read and Write
+- `LM_PROT_XR` - Execute and Read
+- `LM_PROT_XW` - Execute and Write
+- `LM_PROT_XRW` - Execute, Read, and Write
+
+## Working with Deep Pointers
+
+Use `LM_DeepPointer` to resolve pointer chains (like Cheat Engine pointer scans):
+
+```c
+// Resolve: [[[[base + 0x100] + 0x20] + 0x10] + 0x04]
+lm_address_t base = 0x12345678;
+lm_address_t offsets[] = { 0x100, 0x20, 0x10, 0x04 };
+
+lm_address_t final_addr = LM_DeepPointer(base, offsets, 4);
+
+if (final_addr != LM_ADDRESS_BAD) {
+    int value;
+    LM_ReadMemory(final_addr, (lm_byte_t *)&value, sizeof(value));
+    printf("Value: %d\n", value);
+}
+```
+
+For remote processes:
+
+```c
+lm_process_t process;
+LM_FindProcess("game.exe", &process);
+
+lm_module_t game_mod;
+LM_FindModuleEx(&process, "game.dll", &game_mod);
+
+lm_address_t offsets[] = { 0xA0, 0x04, 0x10, 0xF0, 0x0 };
+lm_address_t health_ptr = LM_DeepPointerEx(
+    &process,
+    game_mod.base + 0xDEADBEEF,
+    offsets,
+    5
+);
+
+if (health_ptr != LM_ADDRESS_BAD) {
+    int new_health = 1337;
+    LM_WriteMemoryEx(&process, health_ptr, (lm_bytearray_t)&new_health, sizeof(new_health));
+}
+```
+
+## Complete Example
+
+Here's a complete example demonstrating memory read/write operations:
+
+```c
+#include <libmem/libmem.h>
+#include <stdio.h>
+
+typedef struct {
+    int health;
+    int armor;
+    float x, y, z;
+} PlayerData;
+
+int main()
+{
+    lm_process_t process;
+    
+    // Find the target process
+    if (!LM_FindProcess("game.exe", &process)) {
+        printf("Game process not found\n");
+        return 1;
+    }
+    
+    printf("Found process: %s (PID: %d)\n", process.name, process.pid);
+    
+    // Read player data structure
+    PlayerData player;
+    lm_address_t player_addr = 0x12345678;
+    
+    lm_size_t bytes_read = LM_ReadMemoryEx(
+        &process,
+        player_addr,
+        (lm_byte_t *)&player,
+        sizeof(PlayerData)
+    );
+    
+    if (bytes_read == sizeof(PlayerData)) {
+        printf("Current Stats:\n");
+        printf("  Health: %d\n", player.health);
+        printf("  Armor: %d\n", player.armor);
+        printf("  Position: (%.2f, %.2f, %.2f)\n", player.x, player.y, player.z);
+        
+        // Modify health
+        player.health = 100;
+        player.armor = 100;
+        
+        lm_size_t bytes_written = LM_WriteMemoryEx(
+            &process,
+            player_addr,
+            (lm_bytearray_t)&player,
+            sizeof(PlayerData)
+        );
+        
+        if (bytes_written == sizeof(PlayerData)) {
+            printf("Successfully restored health and armor!\n");
+        }
+    }
+    
+    return 0;
+}
+```

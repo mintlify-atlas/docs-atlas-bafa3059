@@ -1,0 +1,172 @@
+---
+title: 'Disassemble'
+description: 'Convert machine code into assembly instructions'
+---
+
+## LM_Disassemble
+
+Disassembles a single instruction from machine code.
+
+```c
+LM_API lm_bool_t LM_CALL
+LM_Disassemble(lm_address_t machine_code,
+               lm_inst_t   *instruction_out);
+```
+
+<ParamField path="machine_code" type="lm_address_t" required>
+  The memory address of the instruction to be disassembled.
+</ParamField>
+
+<ParamField path="instruction_out" type="lm_inst_t*" required>
+  Pointer to an `lm_inst_t` structure that will be populated with the disassembled instruction.
+</ParamField>
+
+<ResponseField name="Return Value" type="lm_bool_t">
+  Returns `LM_TRUE` on success, `LM_FALSE` on failure.
+</ResponseField>
+
+---
+
+## LM_DisassembleEx
+
+Disassembles multiple instructions from machine code with full control over architecture and instruction count.
+
+```c
+LM_API lm_size_t LM_CALL
+LM_DisassembleEx(lm_address_t machine_code,
+                 lm_arch_t    arch,
+                 lm_size_t    max_size,
+                 lm_size_t    instruction_count,
+                 lm_address_t runtime_address,
+                 lm_inst_t  **instructions_out);
+```
+
+<ParamField path="machine_code" type="lm_address_t" required>
+  The memory address of the instructions to be disassembled.
+</ParamField>
+
+<ParamField path="arch" type="lm_arch_t" required>
+  The architecture to disassemble for. Can be:
+  - `LM_ARCH_X86` - x86 32-bit
+  - `LM_ARCH_X64` - x86 64-bit
+  - `LM_ARCH_ARMV7`, `LM_ARCH_ARMV8`, `LM_ARCH_AARCH64` - ARM variants
+  - And more (see `lm_arch_t` enum)
+</ParamField>
+
+<ParamField path="max_size" type="lm_size_t" required>
+  The maximum number of bytes to disassemble.
+  
+  Use `0` to disassemble as many instructions as possible (limited by `instruction_count`).
+</ParamField>
+
+<ParamField path="instruction_count" type="lm_size_t" required>
+  The maximum number of instructions to disassemble.
+  
+  Use `0` to disassemble as many instructions as possible (limited by `max_size`).
+</ParamField>
+
+<ParamField path="runtime_address" type="lm_address_t" required>
+  The runtime address used to resolve addressing (e.g., relative jumps and calls will be displayed with their resolved addresses).
+  
+  Typically set to the same value as `machine_code`.
+</ParamField>
+
+<ParamField path="instructions_out" type="lm_inst_t**" required>
+  Pointer that will receive an allocated array of `lm_inst_t` structures.
+  
+  **Important**: Must be freed with `LM_FreeInstructions()` after use.
+</ParamField>
+
+<ResponseField name="Return Value" type="lm_size_t">
+  Returns the number of instructions successfully disassembled on success, or `0` on failure.
+</ResponseField>
+
+---
+
+## LM_FreeInstructions
+
+Frees memory allocated by `LM_DisassembleEx`.
+
+```c
+LM_API lm_void_t LM_CALL
+LM_FreeInstructions(lm_inst_t *instructions);
+```
+
+<ParamField path="instructions" type="lm_inst_t*" required>
+  The instruction array that was allocated by `LM_DisassembleEx`.
+</ParamField>
+
+---
+
+## Example (Modern C++)
+
+This example demonstrates disassembling a function until a `ret` instruction is found:
+
+```cpp
+/* C++20 or higher */
+#include <libmem/libmem.hpp>
+#include <iostream>
+
+using namespace libmem;
+
+int main()
+{
+    Address disas_addr = reinterpret_cast<Address>(main);
+
+    // Disassemble function 'main' until a 'ret' is found
+    for (;;) {
+        auto inst = Disassemble(disas_addr).value();
+        std::cout << inst.to_string() << std::endl;
+        if (inst.mnemonic == "ret")
+            break;
+        disas_addr += inst.bytes.size();
+    }
+
+    return 0;
+}
+
+/*
+Output:
+0x55b1a3259275: push rbp -> [ 55 ]
+0x55b1a3259276: mov rbp, rsp -> [ 48 89 e5 ]
+...
+0x55b1a325941a: leave  -> [ c9 ]
+0x55b1a325941b: ret  -> [ c3 ]
+*/
+```
+
+---
+
+## lm_inst_t Structure
+
+The `lm_inst_t` structure represents a single disassembled instruction:
+
+```c
+typedef struct lm_inst_t {
+    lm_address_t address;        // Address of the instruction
+    lm_size_t    size;           // Size of the instruction in bytes
+    lm_byte_t    bytes[LM_INST_MAX]; // Raw instruction bytes (max 16 bytes)
+    lm_char_t    mnemonic[32];   // Instruction mnemonic (e.g., "mov")
+    lm_char_t    op_str[160];    // Operands string (e.g., "eax, ebx")
+} lm_inst_t;
+```
+
+<ParamField path="address" type="lm_address_t">
+  The memory address where this instruction is located.
+</ParamField>
+
+<ParamField path="size" type="lm_size_t">
+  The size of the instruction in bytes (typically 1-16 bytes on x86/x64).
+</ParamField>
+
+<ParamField path="bytes" type="lm_byte_t[LM_INST_MAX]">
+  The raw machine code bytes of the instruction. Maximum size is `LM_INST_MAX` (16 bytes).
+</ParamField>
+
+<ParamField path="mnemonic" type="lm_char_t[32]">
+  The instruction mnemonic (operation name), such as `"mov"`, `"jmp"`, `"call"`, etc.
+</ParamField>
+
+<ParamField path="op_str" type="lm_char_t[160]">
+  The operands of the instruction as a string, such as `"eax, ebx"` or `"[rax + 0x10]"`. May be empty for instructions with no operands.
+</ParamField>

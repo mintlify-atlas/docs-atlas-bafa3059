@@ -1,0 +1,267 @@
+---
+title: Features
+description: Comprehensive overview of libmem's capabilities
+---
+
+# Features Overview
+
+libmem provides a rich set of features for memory manipulation, process interaction, and code modification across multiple platforms.
+
+## Core Capabilities
+
+<CardGroup cols={2}>
+  <Card title="Internal & External" icon="layer-group">
+    Work both from within a process (internal) or from another process (external) with the same API
+  </Card>
+  <Card title="Process Management" icon="list-check">
+    Find, enumerate, and interact with running processes on your system
+  </Card>
+  <Card title="Module Enumeration" icon="box">
+    Discover and manipulate loaded modules (DLLs/shared libraries) in any process
+  </Card>
+  <Card title="Symbol Resolution" icon="code">
+    Find function addresses and resolve symbols from debug information
+  </Card>
+</CardGroup>
+
+## Memory Operations
+
+<CardGroup cols={2}>
+  <Card title="Read/Write Memory" icon="pen-to-square">
+    Direct memory access for reading and writing data in local or remote processes
+  </Card>
+  <Card title="Memory Allocation" icon="memory">
+    Allocate and free memory regions with custom protection flags
+  </Card>
+  <Card title="Memory Protection" icon="shield">
+    Change memory protection flags (read, write, execute) on any memory region
+  </Card>
+  <Card title="Segment Enumeration" icon="table-list">
+    Enumerate and find memory segments/pages with specific protection flags
+  </Card>
+</CardGroup>
+
+## Pattern Scanning & Searching
+
+<CardGroup cols={2}>
+  <Card title="Signature Scanning" icon="magnifying-glass">
+    Search memory for byte patterns with wildcards (AOB scanning)
+  </Card>
+  <Card title="Pattern Matching" icon="search">
+    Advanced pattern scanning with support for complex signatures
+  </Card>
+  <Card title="Data Scanning" icon="database">
+    Scan memory for specific data values and types
+  </Card>
+  <Card title="Pointer Scanning" icon="location-arrow">
+    Resolve multi-level pointers and deep pointer chains (Cheat Engine compatible)
+  </Card>
+</CardGroup>
+
+<Info>
+  Pointer scanning supports Cheat Engine pointer maps, making it easy to port existing cheats and trainers.
+</Info>
+
+## Code Modification
+
+<CardGroup cols={2}>
+  <Card title="JIT Assembly" icon="microchip">
+    Assemble x86/x64/ARM assembly code at runtime using the integrated assembler
+  </Card>
+  <Card title="Disassembly" icon="code">
+    Disassemble machine code into human-readable assembly instructions
+  </Card>
+  <Card title="Function Hooking" icon="link">
+    Hook and unhook functions with automatic trampoline generation
+  </Card>
+  <Card title="VMT Hooking" icon="table">
+    Hook virtual method tables (VMT) for C++ object manipulation
+  </Card>
+</CardGroup>
+
+### Supported Architectures for Assembly
+
+libmem's assembler and disassembler support a wide range of architectures:
+
+- **x86**: 16-bit, 32-bit, and 64-bit
+- **ARM**: ARMv7, ARMv8, Thumb mode, Big Endian variants
+- **ARM64**: AArch64
+- **MIPS**: 32-bit and 64-bit, little and big endian
+- **PowerPC**: 32-bit, 64-bit, and 64-bit LE
+- **SPARC**: SPARC, SPARC64, SPARCEL
+- **SystemZ**: S390X
+
+## Module Management
+
+<CardGroup cols={2}>
+  <Card title="Load Modules" icon="download">
+    Inject DLLs or shared libraries into running processes
+  </Card>
+  <Card title="Unload Modules" icon="trash">
+    Safely unload modules from a process
+  </Card>
+  <Card title="Module Information" icon="info">
+    Get detailed information about loaded modules (base address, size, path)
+  </Card>
+  <Card title="Symbol Enumeration" icon="list">
+    Enumerate all symbols exported by a module
+  </Card>
+</CardGroup>
+
+## Thread Operations
+
+<Card title="Thread Enumeration" icon="list">
+  Enumerate all threads belonging to a process with detailed information
+</Card>
+
+## Process Information
+
+<CardGroup cols={2}>
+  <Card title="Process Details" icon="info">
+    Get PID, PPID, architecture, bits, start time, path, and name for any process
+  </Card>
+  <Card title="Command Line" icon="terminal">
+    Retrieve the command line arguments used to start a process
+  </Card>
+  <Card title="Architecture Detection" icon="microchip">
+    Automatically detect process architecture (x86, x64, ARM, ARM64)
+  </Card>
+  <Card title="Liveness Check" icon="heartbeat">
+    Check if a process is still running
+  </Card>
+</CardGroup>
+
+## Complete Feature List
+
+<Note>
+  All features are available in both internal and external modes across all supported languages (C/C++, Rust, Python).
+</Note>
+
+### Process APIs
+- Enumerate all running processes
+- Get current process information
+- Get remote process information
+- Retrieve process command line
+- Find process by name
+- Check process liveness
+- Get process architecture (32-bit/64-bit)
+- Get system architecture
+
+### Thread APIs
+- Enumerate threads in current process
+- Enumerate threads in remote process
+- Get current thread information
+- Get remote thread information
+- Get the process owning a thread
+
+### Module APIs
+- Enumerate modules in current process
+- Enumerate modules in remote process
+- Find module by name (local)
+- Find module by name (remote)
+- Load module into current process
+- Load module into remote process
+- Unload module from current process
+- Unload module from remote process
+
+### Symbol APIs
+- Enumerate symbols in a module
+- Find symbol address by name
+- Demangle C++ symbols
+- Enumerate demangled symbols
+- Find demangled symbol address
+
+### Memory Segment APIs
+- Enumerate memory segments (local)
+- Enumerate memory segments (remote)
+- Find specific memory segment (local)
+- Find specific memory segment (remote)
+
+### Memory APIs
+- Read memory (local)
+- Read memory (remote)
+- Write memory (local)
+- Write memory (remote)
+- Set memory to a value (memset)
+- Set remote memory to a value
+- Change memory protection (local)
+- Change memory protection (remote)
+- Allocate memory (local)
+- Allocate memory (remote)
+- Free memory (local)
+- Free memory (remote)
+
+### Scanning APIs
+- Resolve deep pointers (local)
+- Resolve deep pointers (remote)
+- Scan for data values (local)
+- Scan for data values (remote)
+- Scan by pattern (local)
+- Scan by pattern (remote)
+- Scan by signature with wildcards (local)
+- Scan by signature with wildcards (remote)
+
+### Assembler APIs
+- Get current architecture
+- Assemble code for current architecture
+- Assemble code for specific architecture
+- Free assembled payload
+- Disassemble code (local)
+- Disassemble code (remote)
+- Free disassembled instructions
+- Calculate code length (local)
+- Calculate code length (remote)
+
+### Hooking APIs
+- Hook function (local)
+- Hook function (remote)
+- Unhook function (local)
+- Unhook function (remote)
+- Create new VMT
+- Hook VMT entry
+- Unhook VMT entry
+- Get original VMT function
+- Reset VMT to original
+- Free VMT
+
+## Language Support
+
+libmem provides first-class support for multiple programming languages:
+
+<CardGroup cols={3}>
+  <Card title="C/C++" icon="c">
+    Native C API with C++ wrapper for modern codebases
+  </Card>
+  <Card title="Rust" icon="rust">
+    Idiomatic Rust bindings with strong type safety
+  </Card>
+  <Card title="Python" icon="python">
+    Easy-to-use Python bindings for rapid prototyping
+  </Card>
+</CardGroup>
+
+<Info>
+  All language bindings provide the same functionality - choose based on your project needs.
+</Info>
+
+## Projects Built with libmem
+
+libmem has been battle-tested in numerous real-world projects:
+
+- [AssaultCube Multihack](https://github.com/rdbo/AssaultCube-Multihack)
+- [X-Inject](https://github.com/rdbo/x-inject)
+- [DirectX9 BaseHook](https://github.com/rdbo/DX9-BaseHook)
+- [DirectX11 BaseHook](https://github.com/rdbo/DX11-BaseHook)
+- [OpenGL BaseHook](https://github.com/rdbo/GL-BaseHook)
+- [Counter-Strike 1.6 BaseHook](https://github.com/rdbo/cstrike-basehook)
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Platform Support" href="/platforms">
+    Check which platforms and architectures are supported
+  </Card>
+  <Card title="Installation" href="/installation">
+    Get started by installing libmem
+  </Card>
+</CardGroup>

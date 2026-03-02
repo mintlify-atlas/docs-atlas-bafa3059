@@ -1,0 +1,443 @@
+---
+title: "C/C++ Bindings"
+description: "Using libmem in C and C++ projects"
+---
+
+libmem provides both a C API (`libmem.h`) and a modern C++ API (`libmem.hpp`) with support for C++20 features like `std::optional` and type-safe wrappers.
+
+## Installation
+
+### Using CMake (Recommended)
+
+Add the following to your `CMakeLists.txt` to fetch and configure libmem:
+
+```cmake
+include(FetchContent)
+
+# Download and set up libmem
+FetchContent_Declare(libmem-config URL "https://raw.githubusercontent.com/rdbo/libmem/config-v1/libmem-config.cmake" DOWNLOAD_NO_EXTRACT TRUE)
+FetchContent_MakeAvailable(libmem-config)
+set(CMAKE_PREFIX_PATH "${libmem-config_SOURCE_DIR}" "${CMAKE_PREFIX_PATH}")
+set(LIBMEM_DOWNLOAD_VERSION "5.1.4")
+
+# Find libmem package
+find_package(libmem CONFIG REQUIRED)
+```
+
+Then link against libmem:
+
+```cmake
+# Link against libmem
+target_link_libraries(<YOUR_TARGET_NAME> PRIVATE libmem::libmem)
+```
+
+### Using vcpkg
+
+```bash
+vcpkg install libmem
+```
+
+### Manual Installation
+
+<Tabs>
+  <Tab title="Windows">
+    **Prerequisites:**
+    - Windows SDK ([Windows 7](https://www.microsoft.com/en-us/download/details.aspx?id=8279) or [Windows 10/11](https://developer.microsoft.com/en-us/windows/downloads/windows-sdk/))
+    - [Visual Studio 2022](https://visualstudio.microsoft.com/) (with C++ and CMake support)
+    - [Python 3](https://python.org/downloads)
+    - [Git Bash](https://git-scm.com/downloads)
+
+    **Build and Install:**
+    ```bash
+    git clone --recursive --depth 1 https://github.com/rdbo/libmem
+    mkdir build && cd build
+    cmake .. -DCMAKE_BUILD_TYPE=Release
+    nmake
+    nmake install  # Run as Administrator
+    ```
+  </Tab>
+  <Tab title="Linux">
+    **Prerequisites:**
+    ```bash
+    sudo apt install gcc g++ git cmake make python3 linux-headers
+    ```
+
+    **Build and Install:**
+    ```bash
+    git clone --recursive --depth 1 https://github.com/rdbo/libmem
+    mkdir build && cd build
+    cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS=-fpermissive
+    make -j 4
+    sudo make install
+    ```
+  </Tab>
+  <Tab title="FreeBSD">
+    **Prerequisites:**
+    ```bash
+    # Configure procfs (add to /etc/fstab)
+    echo "proc\t\t/proc\t\tprocfs\trw\t0\t0" | sudo tee -a /etc/fstab
+    sudo mount -t procfs proc /proc
+
+    # Install dependencies
+    sudo pkg install git cmake python3
+    ```
+
+    **Build and Install:**
+    ```bash
+    git clone --recursive --depth 1 https://github.com/rdbo/libmem
+    mkdir build && cd build
+    cmake .. -DCMAKE_BUILD_TYPE=Release
+    make -j 4
+    sudo make install
+    ```
+  </Tab>
+</Tabs>
+
+## Header Files
+
+<Tabs>
+  <Tab title="C">
+    ```c
+    #include <libmem/libmem.h>
+    ```
+
+    The C API uses:
+    - `lm_bool_t` for return values (`LM_TRUE`/`LM_FALSE`)
+    - Structs like `lm_process_t`, `lm_module_t`, `lm_address_t`
+    - Output parameters (pointers) for results
+    - Manual memory management
+  </Tab>
+  <Tab title="C++">
+    ```cpp
+    #include <libmem/libmem.hpp>
+
+    using namespace libmem;
+    ```
+
+    The C++ API provides:
+    - `std::optional<T>` for return values
+    - Modern C++ types: `Process`, `Module`, `Inst`
+    - `std::vector` and `std::string` instead of raw pointers
+    - RAII memory management
+    - Template overloads for type safety
+  </Tab>
+</Tabs>
+
+## Linking
+
+<Tabs>
+  <Tab title="CMake">
+    ```cmake
+    target_link_libraries(your_target PRIVATE libmem::libmem)
+    ```
+  </Tab>
+  <Tab title="GCC/Clang">
+    ```bash
+    g++ main.cpp -llibmem -o myapp
+    ```
+  </Tab>
+  <Tab title="MSVC">
+    Link against `libmem.lib` (static) or `libmem.dll` (dynamic):
+    ```
+    cl.exe main.cpp libmem.lib
+    ```
+  </Tab>
+</Tabs>
+
+### Platform-Specific Dependencies
+
+**Windows:**
+- `user32.lib`, `psapi.lib`, `ntdll.lib`, `shell32.lib`
+
+**Linux:**
+- `-ldl`, `-lstdc++`, `-lm`
+
+**FreeBSD:**
+- `-ldl`, `-lkvm`, `-lprocstat`, `-lelf`, `-lstdc++`, `-lm`
+
+## Basic Usage
+
+<Tabs>
+  <Tab title="C">
+    ```c
+    #include <libmem/libmem.h>
+    #include <stdio.h>
+
+    int main()
+    {
+        lm_module_t game_mod;
+        lm_address_t fn_take_damage;
+
+        // Find a module by name
+        if (!LM_FindModule("game.dll", &game_mod)) {
+            printf("Failed to find module\n");
+            return 1;
+        }
+        printf("[*] Base address of 'game.dll': %p\n", (void *)game_mod.base);
+
+        // Find a symbol in the module
+        fn_take_damage = LM_FindSymbolAddress(&game_mod, "take_damage");
+        if (fn_take_damage == LM_ADDRESS_BAD) {
+            printf("Failed to find symbol\n");
+            return 1;
+        }
+        printf("[*] Found 'take_damage' function: %p\n", (void *)fn_take_damage);
+
+        return 0;
+    }
+    ```
+
+    **Key C API Functions:**
+
+    | Function | Description | Return Value |
+    |----------|-------------|-------------|
+    | `LM_FindProcess(name, &proc)` | Find process by name | `lm_bool_t` |
+    | `LM_FindModule(name, &mod)` | Find module by name | `lm_bool_t` |
+    | `LM_ReadMemory(src, dest, size)` | Read memory | bytes read |
+    | `LM_WriteMemory(dest, src, size)` | Write memory | bytes written |
+    | `LM_SigScan(sig, addr, size)` | Scan for signature | `lm_address_t` |
+    | `LM_HookCode(from, to, &tramp)` | Hook function | hook size |
+  </Tab>
+  <Tab title="C++">
+    ```cpp
+    #include <libmem/libmem.hpp>
+    #include <iostream>
+
+    using namespace libmem;
+
+    int main()
+    {
+        // Find a module (returns std::optional<Module>)
+        auto game_mod = FindModule("game.dll");
+        if (!game_mod) {
+            std::cerr << "Failed to find module\n";
+            return 1;
+        }
+        std::cout << "[*] Base address: 0x" << std::hex << game_mod->base << std::endl;
+
+        // Find a symbol (returns std::optional<Address>)
+        auto fn_take_damage = FindSymbolAddress(&game_mod.value(), "take_damage");
+        if (!fn_take_damage) {
+            std::cerr << "Failed to find symbol\n";
+            return 1;
+        }
+        std::cout << "[*] Function address: 0x" << std::hex << fn_take_damage.value() << std::endl;
+
+        return 0;
+    }
+    ```
+
+    **Key C++ API Functions:**
+
+    | Function | Return Type |
+    |----------|-------------|
+    | `FindProcess(name)` | `std::optional<Process>` |
+    | `FindModule(name)` | `std::optional<Module>` |
+    | `ReadMemory<T>(addr)` | `T` (template) |
+    | `WriteMemory<T>(addr, value)` | `void` (template) |
+    | `SigScan(sig, addr, size)` | `std::optional<Address>` |
+    | `HookCode(from, to)` | `std::optional<Trampoline>` |
+  </Tab>
+</Tabs>
+
+## Complete Example
+
+<Tabs>
+  <Tab title="C - Function Hooking">
+    ```c
+    #include <libmem/libmem.h>
+    #include <stdio.h>
+
+    void hk_take_damage(int amount)
+    {
+        printf("hooked take_damage! no damage will be taken\n");
+        return;
+    }
+
+    int main()
+    {
+        lm_module_t game_mod;
+        lm_address_t fn_take_damage;
+
+        // Find the game module
+        if (!LM_FindModule("game.dll", &game_mod)) {
+            printf("Failed to find module\n");
+            return 1;
+        }
+        printf("[*] Base address of 'game.dll': %p\n", (void *)game_mod.base);
+
+        // Find the symbol to hook
+        fn_take_damage = LM_FindSymbolAddress(&game_mod, "take_damage");
+        if (fn_take_damage == LM_ADDRESS_BAD) {
+            printf("Failed to find symbol\n");
+            return 1;
+        }
+        printf("[*] Found 'take_damage' function: %p\n", (void *)fn_take_damage);
+
+        // Hook the function
+        if (!LM_HookCode(fn_take_damage, (lm_address_t)hk_take_damage, LM_NULLPTR)) {
+            printf("Failed to hook function\n");
+            return 1;
+        }
+        printf("[*] 'take_damage' hooked, player will no longer receive damage\n");
+
+        return 0;
+    }
+    ```
+  </Tab>
+  <Tab title="C++ - Disassembly">
+    ```cpp
+    /* C++20 or higher */
+    #include <libmem/libmem.hpp>
+    #include <iostream>
+
+    using namespace libmem;
+
+    int main()
+    {
+        Address disas_addr = reinterpret_cast<Address>(main);
+
+        // Disassemble function 'main' until a 'ret' is found
+        for (;;) {
+            auto inst = Disassemble(disas_addr).value();
+            std::cout << inst.to_string() << std::endl;
+            if (inst.mnemonic == "ret")
+                break;
+            disas_addr += inst.bytes.size();
+        }
+
+        return 0;
+    }
+
+    /*
+    Output:
+    0x55b1a3259275: push rbp -> [ 55 ]
+    0x55b1a3259276: mov rbp, rsp -> [ 48 89 e5 ]
+    ...
+    0x55b1a325941a: leave  -> [ c9 ]
+    0x55b1a325941b: ret  -> [ c3 ]
+    */
+    ```
+  </Tab>
+</Tabs>
+
+## Type Reference
+
+<Tabs>
+  <Tab title="C Types">
+    **Core Types:**
+    ```c
+    typedef uintptr_t lm_address_t;
+    typedef size_t lm_size_t;
+    typedef uint32_t lm_pid_t;
+    typedef uint32_t lm_prot_t;
+    ```
+
+    **Structures:**
+    ```c
+    typedef struct lm_process_t {
+        lm_pid_t  pid;
+        lm_pid_t  ppid;
+        lm_arch_t arch;
+        lm_size_t bits;
+        lm_time_t start_time;
+        lm_char_t path[LM_PATH_MAX];
+        lm_char_t name[LM_PATH_MAX];
+    } lm_process_t;
+
+    typedef struct lm_module_t {
+        lm_address_t base;
+        lm_address_t end;
+        lm_size_t    size;
+        lm_char_t    path[LM_PATH_MAX];
+        lm_char_t    name[LM_PATH_MAX];
+    } lm_module_t;
+
+    typedef struct lm_inst_t {
+        lm_address_t address;
+        lm_size_t    size;
+        lm_byte_t    bytes[LM_INST_MAX];
+        lm_char_t    mnemonic[32];
+        lm_char_t    op_str[160];
+    } lm_inst_t;
+    ```
+
+    **Constants:**
+    ```c
+    #define LM_NULL    (0)
+    #define LM_NULLPTR ((void *)LM_NULL)
+    #define LM_ADDRESS_BAD ((lm_address_t)-1)
+    #define LM_PID_BAD ((lm_pid_t)-1)
+    ```
+  </Tab>
+  <Tab title="C++ Types">
+    **Core Types:**
+    ```cpp
+    typedef uintptr_t Address;
+    typedef uint32_t Pid;
+    typedef uint32_t Tid;
+    typedef uint64_t Time;
+    ```
+
+    **Enumerations:**
+    ```cpp
+    enum class Prot: uint32_t {
+        R = (1 << 0),
+        W = (1 << 1),
+        X = (1 << 2),
+        XR = X | R,
+        XW = X | W,
+        RW = R | W,
+        XRW = X | R | W,
+    };
+
+    enum class Arch: uint32_t {
+        X86,    /* x86_32 */
+        X64,    /* x86_64 */
+        // ... (see libmem.hpp for full list)
+    };
+    ```
+
+    **Structures:**
+    ```cpp
+    struct Process {
+        Pid pid;
+        Pid ppid;
+        Arch arch;
+        size_t bits;
+        Time start_time;
+        std::string path;
+        std::string name;
+    };
+
+    struct Module {
+        Address base;
+        Address end;
+        size_t size;
+        std::string path;
+        std::string name;
+    };
+
+    struct Inst {
+        Address address;
+        std::vector<uint8_t> bytes;
+        std::string mnemonic;
+        std::string op_str;
+    };
+
+    struct Trampoline {
+        Address address;
+        size_t size;
+
+        template <typename T>
+        T callable();
+    };
+    ```
+  </Tab>
+</Tabs>
+
+## See Also
+
+- [API Reference](/api-reference/process) - Complete API documentation
+- [Rust Bindings](/bindings/rust) - Rust language bindings
+- [Python Bindings](/bindings/python) - Python language bindings

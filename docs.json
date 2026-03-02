@@ -1,122 +1,174 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "libmem",
+  "theme": "aspen",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#8B5CF6",
+    "light": "#A78BFA",
+    "dark": "#6D28D9"
   },
-  "favicon": "/favicon.svg",
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/rdbo/libmem"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/rdbo/libmem"
+    }
+  },
   "navigation": {
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "Documentation",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "Overview",
             "pages": [
-              "index",
+              "introduction",
+              "features",
+              "platforms"
+            ]
+          },
+          {
+            "group": "Getting Started",
+            "pages": [
+              "installation",
               "quickstart",
-              "development"
+              "building-from-source"
             ]
           },
           {
-            "group": "Customization",
+            "group": "Language Bindings",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
+              "bindings/c-cpp",
+              "bindings/rust",
+              "bindings/python"
             ]
           },
           {
-            "group": "Writing content",
+            "group": "Core Concepts",
             "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
+              "concepts/internal-vs-external",
+              "concepts/processes-and-threads",
+              "concepts/memory-protection",
+              "concepts/architecture-support"
             ]
           },
           {
-            "group": "AI tools",
+            "group": "Guides",
             "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "guides/process-enumeration",
+              "guides/memory-read-write",
+              "guides/memory-scanning",
+              "guides/function-hooking",
+              "guides/assembly-disassembly",
+              "guides/vmt-hooking",
+              "guides/module-injection"
+            ]
+          },
+          {
+            "group": "Examples",
+            "pages": [
+              "examples/basic-memory-manipulation",
+              "examples/pattern-scanning",
+              "examples/hook-game-function",
+              "examples/pointer-chains"
+            ]
+          },
+          {
+            "group": "Contributing",
+            "pages": [
+              "contributing"
             ]
           }
         ]
       },
       {
-        "tab": "API reference",
+        "tab": "API Reference",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "API Overview",
             "pages": [
-              "api-reference/introduction"
+              "api/overview"
             ]
           },
           {
-            "group": "Endpoint examples",
+            "group": "Process APIs",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "api/process/enum-processes",
+              "api/process/get-process",
+              "api/process/find-process",
+              "api/process/process-utils"
+            ]
+          },
+          {
+            "group": "Thread APIs",
+            "pages": [
+              "api/thread/enum-threads",
+              "api/thread/get-thread"
+            ]
+          },
+          {
+            "group": "Module APIs",
+            "pages": [
+              "api/module/enum-modules",
+              "api/module/find-module",
+              "api/module/load-module",
+              "api/module/unload-module"
+            ]
+          },
+          {
+            "group": "Symbol APIs",
+            "pages": [
+              "api/symbol/enum-symbols",
+              "api/symbol/find-symbol",
+              "api/symbol/demangle"
+            ]
+          },
+          {
+            "group": "Memory Segment APIs",
+            "pages": [
+              "api/segment/enum-segments",
+              "api/segment/find-segment"
+            ]
+          },
+          {
+            "group": "Memory APIs",
+            "pages": [
+              "api/memory/read-write",
+              "api/memory/allocate-free",
+              "api/memory/protect"
+            ]
+          },
+          {
+            "group": "Scanning APIs",
+            "pages": [
+              "api/scanning/deep-pointer",
+              "api/scanning/data-scan",
+              "api/scanning/pattern-scan",
+              "api/scanning/signature-scan"
+            ]
+          },
+          {
+            "group": "Assembler APIs",
+            "pages": [
+              "api/assembler/assemble",
+              "api/assembler/disassemble",
+              "api/assembler/code-length"
+            ]
+          },
+          {
+            "group": "Hooking APIs",
+            "pages": [
+              "api/hooking/hook-code",
+              "api/hooking/unhook-code",
+              "api/hooking/vmt-hook"
             ]
           }
         ]
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
-  "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
-    }
-  },
-  "contextual": {
-    "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
-  },
-  "footer": {
-    "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
-    }
+    ]
   }
 }

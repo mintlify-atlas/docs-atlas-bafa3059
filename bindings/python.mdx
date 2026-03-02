@@ -1,0 +1,493 @@
+---
+title: "Python Bindings"
+description: "Using libmem in Python projects with Pythonic APIs"
+---
+
+libmem provides Python bindings with a Pythonic API that handles memory management automatically. Functions raise exceptions on errors and work seamlessly with Python's native types.
+
+## Installation
+
+### From PyPI (Recommended)
+
+```bash
+pip install --upgrade libmem
+```
+
+The package will automatically download and link the appropriate libmem binary for your platform. No manual installation required!
+
+### From Source
+
+```bash
+cd libmem/bindings/python
+python configure.py
+python setup.py install
+```
+
+### Custom libmem Installation
+
+If you have libmem installed in a custom location, set the `LIBDIR` environment variable:
+
+```bash
+export LIBDIR=/path/to/libmem
+pip install libmem
+```
+
+## Requirements
+
+- Python >= 3.6
+- Automatically fetches libmem binaries (no manual installation needed)
+
+## Importing
+
+```python
+from libmem import *
+```
+
+All libmem functions and classes are available in the root module.
+
+## Basic Usage
+
+### Finding Processes and Modules
+
+```python
+from libmem import *
+
+# Find a process by name
+process = find_process("game.exe")
+if process:
+    print(f"Found process: PID {process.pid}")
+    print(f"Process path: {process.path}")
+
+# Find a module in the process
+game_mod = find_module_ex(process, process.name)
+if game_mod:
+    print(f"Module base: 0x{game_mod.base:x}")
+    print(f"Module size: {game_mod.size} bytes")
+```
+
+### Reading and Writing Memory
+
+```python
+from libmem import *
+
+process = find_process("game.exe")
+game_mod = find_module_ex(process, process.name)
+
+# Read memory
+data = read_memory_ex(process, game_mod.base + 0x1000, 4)
+if data:
+    print(f"Read bytes: {data.hex()}")
+
+# Write memory
+write_memory_ex(process, game_mod.base + 0x2000, bytearray([0x90, 0x90, 0x90, 0x90]))
+print("Wrote NOP sled")
+```
+
+### Memory Scanning
+
+```python
+from libmem import *
+
+process = find_process("game.exe")
+module = find_module_ex(process, "client.dll")
+
+# Signature scan
+result = sig_scan_ex(
+    process,
+    "55 48 89 E5 ?? ?? 48 8B 5D FC",
+    module.base,
+    module.size
+)
+
+if result:
+    print(f"Found signature at: 0x{result:x}")
+```
+
+## Complete Example: Health Hack
+
+```python
+from libmem import *
+import time
+
+process = find_process("game.exe")
+game_mod = find_module_ex(process, process.name)
+
+# Resolve a Cheat Engine pointer scan
+health_pointer = deep_pointer_ex(
+    process,
+    game_mod.base + 0xdeadbeef,
+    [0xA0, 0x04, 0x10, 0xF0, 0x0]
+)
+
+if health_pointer:
+    print(f"Health pointer resolved to: 0x{health_pointer:x}")
+    
+    # Set player health to 1337 forever
+    while True:
+        write_memory_ex(process, health_pointer, bytearray(int(1337).to_bytes(4, 'little')))
+        time.sleep(0.2)
+else:
+    print("Failed to resolve health pointer")
+```
+
+## Working with Data Types
+
+### Converting Integers to Bytes
+
+```python
+from libmem import *
+import struct
+
+process = find_process("game.exe")
+address = 0x12345678
+
+# Write different integer types
+write_memory_ex(process, address, int(1337).to_bytes(4, 'little'))  # int32
+write_memory_ex(process, address, int(9999).to_bytes(8, 'little'))  # int64
+write_memory_ex(process, address, int(255).to_bytes(1, 'little'))   # byte
+
+# Using struct for more control
+write_memory_ex(process, address, bytearray(struct.pack('<I', 1337)))  # unsigned int
+write_memory_ex(process, address, bytearray(struct.pack('<f', 3.14))) # float
+write_memory_ex(process, address, bytearray(struct.pack('<d', 2.718)))# double
+```
+
+### Reading Data Types
+
+```python
+from libmem import *
+import struct
+
+process = find_process("game.exe")
+address = 0x12345678
+
+# Read as integer
+data = read_memory_ex(process, address, 4)
+if data:
+    value = int.from_bytes(data, 'little')
+    print(f"Integer value: {value}")
+
+# Read as float
+data = read_memory_ex(process, address, 4)
+if data:
+    value = struct.unpack('<f', data)[0]
+    print(f"Float value: {value}")
+
+# Read as string (null-terminated)
+data = read_memory_ex(process, address, 256)
+if data:
+    string = data.split(b'\x00')[0].decode('utf-8', errors='ignore')
+    print(f"String: {string}")
+```
+
+## Assembly and Disassembly
+
+### Assembling Instructions
+
+```python
+from libmem import *
+
+# Assemble shellcode
+shellcode = assemble_ex(
+    "mov rax, 0x1337; push rax; pop rbx; ret",
+    Arch.X64,
+    0  # runtime address
+)
+
+if shellcode:
+    print(f"Assembled {len(shellcode)} bytes")
+    print(f"Bytes: {shellcode.hex()}")
+    
+    # Inject the shellcode
+    process = find_process("game.exe")
+    write_memory_ex(process, target_address, shellcode)
+```
+
+### Disassembling Instructions
+
+```python
+from libmem import *
+
+process = find_process("game.exe")
+module = find_module_ex(process, "game.exe")
+
+# Disassemble 10 instructions from module base
+instructions = disassemble_ex(
+    module.base,
+    Arch.X64,
+    0,           # max_size (0 = unlimited)
+    10,          # instruction_count
+    module.base  # runtime address
+)
+
+if instructions:
+    for inst in instructions:
+        print(f"0x{inst.address:x}: {inst.mnemonic} {inst.op_str}")
+        print(f"  Bytes: {' '.join(f'{b:02x}' for b in inst.bytes)}")
+```
+
+## Function Hooking
+
+```python
+from libmem import *
+import ctypes
+
+process = get_process()
+game_mod = find_module("game.dll")
+
+# Find the target function
+fn_take_damage = find_symbol_address(game_mod, "take_damage")
+
+if fn_take_damage:
+    # Create hook shellcode that returns immediately
+    hook_shellcode = assemble_ex("ret", Arch.X64, fn_take_damage)
+    
+    # Install the hook
+    trampoline = hook_code(fn_take_damage, hook_shellcode)
+    
+    if trampoline:
+        print(f"Hooked take_damage at 0x{fn_take_damage:x}")
+        print(f"Trampoline at 0x{trampoline.address:x}")
+```
+
+## Working with Pointer Chains
+
+```python
+from libmem import *
+
+process = find_process("game.exe")
+game_mod = find_module_ex(process, process.name)
+
+# Simple pointer chain
+base = game_mod.base + 0x00ABCDEF
+offsets = [0x10, 0x20, 0x30]
+
+final_address = deep_pointer_ex(process, base, offsets)
+if final_address:
+    print(f"Resolved pointer chain to: 0x{final_address:x}")
+    
+    # Read value at the end of the chain
+    value_bytes = read_memory_ex(process, final_address, 4)
+    if value_bytes:
+        value = int.from_bytes(value_bytes, 'little')
+        print(f"Value: {value}")
+```
+
+## Pattern and Signature Scanning
+
+```python
+from libmem import *
+
+process = find_process("game.exe")
+module = find_module_ex(process, "client.dll")
+
+# Signature scan (wildcards with ??)
+sig_result = sig_scan_ex(
+    process,
+    "55 48 89 E5 ?? ?? 48 8B",
+    module.base,
+    module.size
+)
+
+# Pattern scan with mask
+pattern = bytearray([0x55, 0x48, 0x89, 0xE5, 0x00, 0x00, 0x48, 0x8B])
+mask = "xxxx??xx"  # x = exact match, ? = wildcard
+
+pattern_result = pattern_scan_ex(
+    process,
+    pattern,
+    mask,
+    module.base,
+    module.size
+)
+
+# Data scan (exact bytes)
+data = bytearray([0xDE, 0xAD, 0xBE, 0xEF])
+data_result = data_scan_ex(
+    process,
+    data,
+    module.base,
+    module.size
+)
+
+if sig_result:
+    print(f"Signature found at: 0x{sig_result:x}")
+if pattern_result:
+    print(f"Pattern found at: 0x{pattern_result:x}")
+if data_result:
+    print(f"Data found at: 0x{data_result:x}")
+```
+
+## Memory Allocation and Protection
+
+```python
+from libmem import *
+
+process = find_process("game.exe")
+
+# Allocate executable memory
+alloc_addr = alloc_memory_ex(process, 0x1000, Prot.XRW)
+if alloc_addr:
+    print(f"Allocated memory at: 0x{alloc_addr:x}")
+    
+    # Write shellcode to allocated memory
+    shellcode = assemble_ex("mov rax, 0; ret", Arch.X64, alloc_addr)
+    write_memory_ex(process, alloc_addr, shellcode)
+    
+    # Change protection to read-execute only
+    old_prot = prot_memory_ex(process, alloc_addr, 0x1000, Prot.XR)
+    if old_prot:
+        print(f"Changed protection from {old_prot} to XR")
+    
+    # Free when done
+    free_memory_ex(process, alloc_addr, 0x1000)
+```
+
+## Key Functions
+
+### Process Management
+
+| Function | Return Type | Description |
+|----------|-------------|-------------|
+| `find_process(name)` | `Process` or `None` | Find process by name |
+| `get_process()` | `Process` or `None` | Get current process |
+| `is_process_alive(process)` | `bool` | Check if process is alive |
+| `enum_processes()` | `list[Process]` or `None` | List all processes |
+
+### Module Management
+
+| Function | Return Type | Description |
+|----------|-------------|-------------|
+| `find_module(name)` | `Module` or `None` | Find module in current process |
+| `find_module_ex(proc, name)` | `Module` or `None` | Find module in target process |
+| `enum_modules()` | `list[Module]` or `None` | List modules in current process |
+| `enum_modules_ex(proc)` | `list[Module]` or `None` | List modules in target process |
+| `load_module(path)` | `Module` or `None` | Load a module/library |
+| `load_module_ex(proc, path)` | `Module` or `None` | Load module into target process |
+
+### Memory Operations
+
+| Function | Return Type | Description |
+|----------|-------------|-------------|
+| `read_memory(addr, size)` | `bytearray` or `None` | Read memory in current process |
+| `read_memory_ex(proc, addr, size)` | `bytearray` or `None` | Read memory in target process |
+| `write_memory(addr, data)` | `int` | Write memory in current process |
+| `write_memory_ex(proc, addr, data)` | `int` | Write memory in target process |
+| `alloc_memory(size, prot)` | `int` or `None` | Allocate memory |
+| `alloc_memory_ex(proc, size, prot)` | `int` or `None` | Allocate memory in target process |
+| `free_memory(addr, size)` | `bool` | Free allocated memory |
+| `free_memory_ex(proc, addr, size)` | `bool` | Free memory in target process |
+| `prot_memory(addr, size, prot)` | `Prot` or `None` | Change memory protection |
+| `prot_memory_ex(proc, addr, size, prot)` | `Prot` or `None` | Change protection in target process |
+
+### Scanning
+
+| Function | Return Type | Description |
+|----------|-------------|-------------|
+| `sig_scan(sig, addr, size)` | `int` or `None` | Signature scan in current process |
+| `sig_scan_ex(proc, sig, addr, size)` | `int` or `None` | Signature scan in target process |
+| `pattern_scan(pattern, mask, addr, size)` | `int` or `None` | Pattern scan with mask |
+| `pattern_scan_ex(proc, pattern, mask, addr, size)` | `int` or `None` | Pattern scan in target process |
+| `data_scan(data, addr, size)` | `int` or `None` | Scan for exact bytes |
+| `data_scan_ex(proc, data, addr, size)` | `int` or `None` | Data scan in target process |
+| `deep_pointer(base, offsets)` | `int` | Resolve pointer chain |
+| `deep_pointer_ex(proc, base, offsets)` | `int` or `None` | Resolve pointer chain in target process |
+
+### Assembly/Disassembly
+
+| Function | Return Type | Description |
+|----------|-------------|-------------|
+| `assemble(code)` | `Inst` or `None` | Assemble single instruction |
+| `assemble_ex(code, arch, addr)` | `bytearray` or `None` | Assemble multiple instructions |
+| `disassemble(addr)` | `Inst` or `None` | Disassemble single instruction |
+| `disassemble_ex(addr, arch, max_size, count, runtime_addr)` | `list[Inst]` or `None` | Disassemble multiple instructions |
+
+### Hooking
+
+| Function | Return Type | Description |
+|----------|-------------|-------------|
+| `hook_code(from_addr, to_addr)` | `Trampoline` or `None` | Hook a function |
+| `hook_code_ex(proc, from_addr, to_addr)` | `RemoteTrampoline` or `None` | Hook in target process |
+| `unhook_code(from_addr, trampoline)` | `bool` | Remove a hook |
+| `unhook_code_ex(proc, from_addr, trampoline)` | `bool` | Remove hook in target process |
+
+## Type Reference
+
+```python
+class Process:
+    pid: int
+    ppid: int
+    bits: int
+    start_time: int
+    path: str
+    name: str
+
+class Module:
+    base: int
+    end: int
+    size: int
+    path: str
+    name: str
+
+class Inst:
+    address: int
+    bytes: bytearray
+    mnemonic: str
+    op_str: str
+
+class Trampoline:
+    address: int
+    size: int
+
+class RemoteTrampoline:
+    address: int
+    size: int
+
+class Arch:
+    X86: int
+    X64: int
+    ARMV7: int
+    ARMV8: int
+    AARCH64: int
+    # ... (see documentation for full list)
+
+class Prot:
+    R: int   # Read
+    W: int   # Write
+    X: int   # Execute
+    XR: int  # Execute + Read
+    XW: int  # Execute + Write
+    RW: int  # Read + Write
+    XRW: int # Execute + Read + Write
+```
+
+## Error Handling
+
+Python bindings return `None` on failure:
+
+```python
+from libmem import *
+
+# Check return values
+process = find_process("game.exe")
+if process is None:
+    print("Process not found")
+    exit(1)
+
+module = find_module_ex(process, "game.dll")
+if module is None:
+    print("Module not found")
+    exit(1)
+
+# Safe chaining with walrus operator (Python 3.8+)
+if (proc := find_process("game.exe")) and (mod := find_module_ex(proc, "game.dll")):
+    print(f"Module base: 0x{mod.base:x}")
+else:
+    print("Failed to find process or module")
+```
+
+## See Also
+
+- [C/C++ Bindings](/bindings/c-cpp) - C and C++ language bindings
+- [Rust Bindings](/bindings/rust) - Rust language bindings
+- [API Reference](/api-reference/process) - Complete API documentation

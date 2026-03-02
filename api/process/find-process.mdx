@@ -1,0 +1,201 @@
+---
+title: 'LM_FindProcess'
+description: 'Find a process by name'
+---
+
+## Description
+
+Searches for a process by name and returns whether the process was found or not. This is a convenient alternative to manually enumerating all processes with `LM_EnumProcesses`.
+
+## Function Signature
+
+```c
+LM_API lm_bool_t LM_CALL
+LM_FindProcess(lm_string_t   process_name,
+               lm_process_t *process_out);
+```
+
+## Parameters
+
+<ParamField path="process_name" type="lm_string_t" required>
+  The name of the process you are trying to find (e.g., `"game.exe"`). It can also be a relative path, such as `/game/hello` for a process at `/usr/share/game/hello`.
+  
+  **Note:** `lm_string_t` is defined as `const char *`
+</ParamField>
+
+<ParamField path="process_out" type="lm_process_t *" required>
+  A pointer to the `lm_process_t` structure that will be populated with information about the found process.
+</ParamField>
+
+## Return Value
+
+<ResponseField name="return" type="lm_bool_t">
+  Returns `LM_TRUE` if the process with the specified name was found successfully, or `LM_FALSE` otherwise.
+</ResponseField>
+
+## Process Structure
+
+The `process_out` parameter is populated with the following structure:
+
+```c
+typedef struct lm_process_t {
+    lm_pid_t  pid;          // Process ID
+    lm_pid_t  ppid;         // Parent process ID
+    lm_arch_t arch;         // Process architecture
+    lm_size_t bits;         // Process bits (32 or 64)
+    lm_time_t start_time;   // Process start timestamp in ms since boot
+    lm_char_t path[LM_PATH_MAX];  // Full path to process executable
+    lm_char_t name[LM_PATH_MAX];  // Process name
+} lm_process_t;
+```
+
+## Examples
+
+### Find Process by Exact Name
+
+```c
+#include <libmem/libmem.h>
+#include <stdio.h>
+
+int main()
+{
+    lm_process_t process;
+    
+    if (LM_FindProcess("game.exe", &process)) {
+        printf("Found game.exe!\n");
+        printf("  PID: %d\n", process.pid);
+        printf("  Path: %s\n", process.path);
+        printf("  Bits: %zu\n", process.bits);
+    } else {
+        printf("game.exe not found\n");
+    }
+    
+    return 0;
+}
+```
+
+### Find Process by Relative Path
+
+```c
+#include <libmem/libmem.h>
+#include <stdio.h>
+
+int main()
+{
+    lm_process_t process;
+    
+    // Find process with path ending in "/game/hello"
+    if (LM_FindProcess("/game/hello", &process)) {
+        printf("Found process!\n");
+        printf("  Full path: %s\n", process.path);
+        printf("  PID: %d\n", process.pid);
+    } else {
+        printf("Process not found\n");
+    }
+    
+    return 0;
+}
+```
+
+### Monitor Target Process
+
+```c
+#include <libmem/libmem.h>
+#include <stdio.h>
+#include <unistd.h>
+
+int main()
+{
+    lm_process_t target;
+    const char *target_name = "my_app";
+    
+    printf("Waiting for %s to start...\n", target_name);
+    
+    // Poll until process is found
+    while (!LM_FindProcess(target_name, &target)) {
+        sleep(1);
+    }
+    
+    printf("Process started!\n");
+    printf("  PID: %d\n", target.pid);
+    printf("  Path: %s\n", target.path);
+    printf("  Start time: %llu ms\n", target.start_time);
+    
+    // Keep reference to check if process is still alive
+    while (LM_IsProcessAlive(&target)) {
+        printf("Process is still running...\n");
+        sleep(5);
+    }
+    
+    printf("Process has terminated\n");
+    return 0;
+}
+```
+
+### Cross-Platform Process Finding
+
+```c
+#include <libmem/libmem.h>
+#include <stdio.h>
+
+int main()
+{
+    lm_process_t process;
+    
+#ifdef _WIN32
+    const char *process_name = "notepad.exe";
+#else
+    const char *process_name = "firefox";
+#endif
+    
+    if (LM_FindProcess(process_name, &process)) {
+        printf("Found %s\n", process_name);
+        printf("  Architecture: ");
+        
+        switch (process.arch) {
+            case LM_ARCH_X86:
+                printf("x86 (32-bit)\n");
+                break;
+            case LM_ARCH_X64:
+                printf("x64 (64-bit)\n");
+                break;
+            default:
+                printf("Other (%u)\n", process.arch);
+                break;
+        }
+    }
+    
+    return 0;
+}
+```
+
+## Name Matching Behavior
+
+- **Exact name**: `"game.exe"` matches only processes named `game.exe`
+- **Relative path**: `"/bin/sh"` matches any process whose path ends with `/bin/sh`
+- **Case sensitivity**: Depends on the operating system (case-sensitive on Linux, case-insensitive on Windows)
+- **First match**: If multiple processes have the same name, the first one found is returned
+
+## Notes
+
+- This function internally uses `LM_EnumProcesses` to search for the process
+- If multiple processes have the same name, only the first match is returned
+- The process must be running at the time of the call
+- On some systems, you may need elevated privileges to find all processes
+- Use `LM_IsProcessAlive` to verify the process is still running after finding it
+- For more control over the search, use `LM_EnumProcesses` with a custom callback
+
+## Common Use Cases
+
+1. **Process injection**: Find target process before injecting a DLL
+2. **Process monitoring**: Check if a specific application is running
+3. **Game hacking**: Locate game process for memory manipulation
+4. **Anti-cheat bypass**: Detect if anti-cheat processes are running
+5. **Automation**: Wait for a specific process to start before performing actions
+
+## See Also
+
+- [LM_EnumProcesses](/api/process/enum-processes) - Enumerate all processes with custom callback
+- [LM_GetProcess](/api/process/get-process) - Get information about the current process
+- [LM_GetProcessEx](/api/process/get-process#lm-getprocessex) - Get information about a process by PID
+- [LM_IsProcessAlive](/api/process/process-utils#lm-isprocessalive) - Check if a process is still alive

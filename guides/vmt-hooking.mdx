@@ -1,0 +1,349 @@
+---
+title: VMT Hooking
+description: Learn how to hook C++ virtual functions using Virtual Method Table (VMT) hooking
+---
+
+This guide covers Virtual Method Table (VMT) hooking, a technique for hooking C++ virtual functions by modifying object vtables. This is useful for game hacking and reverse engineering C++ applications.
+
+## What is VMT Hooking?
+
+In C++, classes with virtual functions use a Virtual Method Table (vtable) - a table of function pointers. VMT hooking works by:
+
+1. Creating a copy of an object's vtable
+2. Replacing entries in the copied vtable with pointers to your hook functions
+3. Redirecting the object to use your modified vtable
+4. Preserving the ability to call original functions
+
+## VMT Structure
+
+libmem uses these structures for VMT hooking:
+
+```c
+typedef struct lm_vmt_entry_t {
+    lm_address_t           orig_func;  // Original function address
+    lm_size_t              index;      // Index in vtable
+    struct lm_vmt_entry_t *next;       // Next hooked entry
+} lm_vmt_entry_t;
+
+typedef struct lm_vmt_t {
+    lm_address_t   *vtable;     // Modified vtable copy
+    lm_vmt_entry_t *hkentries;  // Linked list of hooks
+} lm_vmt_t;
+```
+
+## Creating a VMT Hook
+
+Use `LM_VmtNew` to create a new VMT hook on an object.
+
+<Steps>
+
+<Step title="Get the object pointer">
+Obtain a pointer to the C++ object you want to hook:
+
+```c
+// Example: object pointer from game memory
+void **object_ptr = (void **)0x12345678;
+```
+
+In C++, the first member of an object with virtual functions is a pointer to the vtable.
+</Step>
+
+<Step title="Create the VMT hook">
+Use `LM_VmtNew` to create a copy of the vtable:
+
+```c
+lm_vmt_t vmt;
+
+if (LM_VmtNew(object_ptr, &vmt)) {
+    printf("VMT created successfully\n");
+    printf("New vtable at: %p\n", vmt.vtable);
+} else {
+    printf("Failed to create VMT\n");
+}
+```
+
+This creates a copy of the vtable and redirects the object to use it.
+</Step>
+
+</Steps>
+
+## Hooking Virtual Functions
+
+Use `LM_VmtHook` to hook a specific virtual function.
+
+<Steps>
+
+<Step title="Create your hook function">
+Write a hook function with the same signature as the virtual function:
+
+```c
+// Original virtual function signature:
+// virtual void Update(float deltaTime);
+
+void* orig_Update = NULL;
+
+void __fastcall hk_Update(void *this_ptr, float deltaTime)
+{
+    printf("[HOOK] Update called with deltaTime: %.3f\n", deltaTime);
+    
+    // Call original function
+    typedef void (__fastcall *Update_fn)(void*, float);
+    ((Update_fn)orig_Update)(this_ptr, deltaTime);
+}
+```
+
+<Note>
+Use `__fastcall` calling convention for member functions on Windows. On Linux, use the default calling convention.
+</Note>
+</Step>
+
+<Step title="Hook the virtual function">
+Use `LM_VmtHook` to replace the vtable entry:
+
+```c
+// Hook the Update function at vtable index 5
+lm_size_t vtable_index = 5;
+
+if (LM_VmtHook(&vmt, vtable_index, (lm_address_t)hk_Update)) {
+    printf("Successfully hooked virtual function at index %zu\n", vtable_index);
+} else {
+    printf("Failed to hook virtual function\n");
+}
+```
+</Step>
+
+<Step title="Get the original function">
+Use `LM_VmtGetOriginal` to retrieve the original function pointer:
+
+```c
+orig_Update = (void*)LM_VmtGetOriginal(&vmt, vtable_index);
+
+if (orig_Update) {
+    printf("Original function at: %p\n", orig_Update);
+}
+```
+</Step>
+
+</Steps>
+
+## Unhooking Virtual Functions
+
+Use `LM_VmtUnhook` to restore a specific virtual function.
+
+```c
+lm_size_t vtable_index = 5;
+
+if (LM_VmtUnhook(&vmt, vtable_index)) {
+    printf("Successfully unhooked virtual function\n");
+    orig_Update = NULL;
+} else {
+    printf("Failed to unhook virtual function\n");
+}
+```
+
+## Resetting the Entire VMT
+
+Use `LM_VmtReset` to restore all hooked functions and the original vtable:
+
+```c
+if (LM_VmtReset(&vmt)) {
+    printf("VMT reset successfully\n");
+} else {
+    printf("Failed to reset VMT\n");
+}
+```
+
+## Freeing VMT Resources
+
+Use `LM_VmtFree` to free the VMT and restore the original vtable:
+
+```c
+if (LM_VmtFree(&vmt)) {
+    printf("VMT freed successfully\n");
+} else {
+    printf("Failed to free VMT\n");
+}
+```
+
+<Warning>
+Always free VMT resources before your program exits to prevent memory leaks and potential crashes.
+</Warning>
+
+## Complete Example: Hooking a Game Entity
+
+Here's a complete example demonstrating VMT hooking:
+
+```c
+#include <libmem/libmem.h>
+#include <stdio.h>
+
+// Example C++ class (for reference):
+// class Entity {
+// public:
+//     virtual void Update(float deltaTime);  // vtable index 0
+//     virtual void Render();                 // vtable index 1
+//     virtual int GetHealth();               // vtable index 2
+//     virtual void TakeDamage(int amount);   // vtable index 3
+// };
+
+// Store original function pointers
+void* orig_Update = NULL;
+void* orig_TakeDamage = NULL;
+
+// Hook for Update function
+void __fastcall hk_Update(void *this_ptr, float deltaTime)
+{
+    printf("[HOOK] Update(deltaTime=%.3f)\n", deltaTime);
+    
+    // Call original
+    typedef void (__fastcall *Update_fn)(void*, float);
+    ((Update_fn)orig_Update)(this_ptr, deltaTime);
+}
+
+// Hook for TakeDamage function
+void __fastcall hk_TakeDamage(void *this_ptr, int amount)
+{
+    printf("[HOOK] TakeDamage called with %d damage\n", amount);
+    printf("[HOOK] Blocking damage (god mode)\n");
+    
+    // Don't call original - no damage taken!
+}
+
+int main()
+{
+    printf("VMT Hooking Example\n");
+    printf("===================\n\n");
+    
+    // In a real scenario, you'd find this address via pattern scanning
+    // or reading from game memory
+    lm_process_t process;
+    if (!LM_FindProcess("game.exe", &process)) {
+        printf("Game not found\n");
+        return 1;
+    }
+    
+    // Example: Read entity pointer from known address
+    void **entity_ptr = NULL;
+    lm_address_t entity_addr = 0x12345678;  // Replace with actual address
+    
+    LM_ReadMemoryEx(&process, entity_addr, 
+                    (lm_byte_t*)&entity_ptr, sizeof(entity_ptr));
+    
+    if (!entity_ptr) {
+        printf("Failed to read entity pointer\n");
+        return 1;
+    }
+    
+    printf("Entity object at: %p\n", entity_ptr);
+    
+    // Create VMT hook
+    lm_vmt_t vmt;
+    if (!LM_VmtNew(entity_ptr, &vmt)) {
+        printf("Failed to create VMT\n");
+        return 1;
+    }
+    
+    printf("VMT created, new vtable at: %p\n\n", vmt.vtable);
+    
+    // Hook Update function (index 0)
+    printf("Hooking Update function...\n");
+    if (LM_VmtHook(&vmt, 0, (lm_address_t)hk_Update)) {
+        orig_Update = (void*)LM_VmtGetOriginal(&vmt, 0);
+        printf("  Hooked! Original at: %p\n", orig_Update);
+    }
+    
+    // Hook TakeDamage function (index 3)
+    printf("Hooking TakeDamage function...\n");
+    if (LM_VmtHook(&vmt, 3, (lm_address_t)hk_TakeDamage)) {
+        orig_TakeDamage = (void*)LM_VmtGetOriginal(&vmt, 3);
+        printf("  Hooked! Original at: %p\n", orig_TakeDamage);
+    }
+    
+    printf("\nGod mode activated! Entity will not take damage.\n");
+    printf("Press Enter to unhook TakeDamage...\n");
+    getchar();
+    
+    // Unhook TakeDamage
+    if (LM_VmtUnhook(&vmt, 3)) {
+        printf("TakeDamage unhooked\n");
+        orig_TakeDamage = NULL;
+    }
+    
+    printf("Press Enter to reset entire VMT...\n");
+    getchar();
+    
+    // Reset all hooks
+    if (LM_VmtReset(&vmt)) {
+        printf("VMT reset - all hooks removed\n");
+    }
+    
+    printf("Press Enter to free VMT and exit...\n");
+    getchar();
+    
+    // Clean up
+    if (LM_VmtFree(&vmt)) {
+        printf("VMT freed successfully\n");
+    }
+    
+    return 0;
+}
+```
+
+## Finding Vtable Indices
+
+To determine which vtable index corresponds to which function:
+
+### Method 1: Disassembly
+
+Disassemble the vtable to see function pointers:
+
+```c
+void **vtable = *(void***)object_ptr;
+
+printf("Vtable contents:\n");
+for (int i = 0; i < 10; i++) {  // Check first 10 entries
+    lm_address_t func_addr = (lm_address_t)vtable[i];
+    printf("[%d] %p\n", i, (void*)func_addr);
+    
+    // Optionally disassemble first instruction
+    lm_inst_t inst;
+    if (LM_Disassemble(func_addr, &inst)) {
+        printf("    %s %s\n", inst.mnemonic, inst.op_str);
+    }
+}
+```
+
+### Method 2: Reverse Engineering
+
+Use tools like IDA Pro, Ghidra, or x64dbg to analyze the class and identify virtual function order.
+
+## Best Practices
+
+<CardGroup cols={2}>
+<Card title="One VMT per Object" icon="object-group">
+Create a separate VMT hook for each object instance you want to hook.
+</Card>
+
+<Card title="Store Originals" icon="floppy-disk">
+Always save original function pointers for calling or unhooking later.
+</Card>
+
+<Card title="Clean Up" icon="broom">
+Always call LM_VmtFree before exiting to prevent memory leaks.
+</Card>
+
+<Card title="Correct Calling Convention" icon="phone">
+Use __fastcall on Windows for member functions (this pointer in RCX/ECX).
+</Card>
+</CardGroup>
+
+## Common Use Cases
+
+- **Hooking game entities**: Hook Update, Render, TakeDamage, etc.
+- **UI modifications**: Hook rendering functions to add custom UI elements
+- **Event interception**: Hook event handlers in game engines
+- **Anti-cheat bypass**: Hook detection functions (educational purposes only)
+
+<Warning>
+VMT hooking only works on objects with virtual functions. The object must have a vtable pointer as its first member.
+</Warning>

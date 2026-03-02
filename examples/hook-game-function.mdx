@@ -1,0 +1,407 @@
+---
+title: Hook Game Function
+description: Intercept and modify function behavior using code hooks
+---
+
+Function hooking allows you to intercept function calls, modify their behavior, or prevent them from executing entirely. This is commonly used for game modding, debugging, and reverse engineering.
+
+## Basic Function Hooking
+
+This example demonstrates hooking a `take_damage` function to prevent a player from taking damage - a classic "god mode" implementation.
+
+### Take Damage Hook Example
+
+<CodeGroup>
+```c C/C++
+#include <libmem/libmem.h>
+
+void hk_take_damage(int amount)
+{
+  printf("hooked take_damage! no damage will be taken\n");
+  return;
+}
+
+int main()
+{
+	lm_module_t game_mod;
+	lm_address_t fn_take_damage;
+
+	LM_FindModule("game.dll", &game_mod);
+	printf("[*] Base address of 'game.dll': %p\n", game_mod.base);
+
+	fn_take_damage = LM_FindSymbolAddress(&game_mod, "take_damage");
+	printf("[*] Found 'take_damage' function: %p\n", fn_take_damage);
+
+	LM_HookCode(fn_take_damage, hk_take_damage, LM_NULLPTR);
+	printf("[*] 'take_damage' hooked, player will no longer receive damage\n");
+
+	return 0;
+}
+```
+
+```cpp C++
+#include <libmem/libmem.hpp>
+#include <iostream>
+
+using namespace libmem;
+
+void hk_take_damage(int amount)
+{
+    std::cout << "hooked take_damage! no damage will be taken" << std::endl;
+    return;
+}
+
+int main()
+{
+    auto game_mod = FindModule("game.dll").value();
+    std::cout << "[*] Base address of 'game.dll': " << std::hex << game_mod.base << std::endl;
+
+    auto fn_take_damage = FindSymbolAddress(game_mod, "take_damage").value();
+    std::cout << "[*] Found 'take_damage' function: " << std::hex << fn_take_damage << std::endl;
+
+    HookCode(fn_take_damage, reinterpret_cast<Address>(hk_take_damage));
+    std::cout << "[*] 'take_damage' hooked, player will no longer receive damage" << std::endl;
+
+    return 0;
+}
+```
+
+```rust Rust
+use libmem::*;
+
+extern "C" fn hk_take_damage(amount: i32) {
+    println!("hooked take_damage! no damage will be taken");
+}
+
+fn main() -> Option<()> {
+    let game_mod = find_module("game.dll")?;
+    println!("[*] Base address of 'game.dll': {:x}", game_mod.base);
+
+    let fn_take_damage = find_symbol_address(&game_mod, "take_damage")?;
+    println!("[*] Found 'take_damage' function: {:x}", fn_take_damage);
+
+    hook_code(fn_take_damage, hk_take_damage as usize, None)?;
+    println!("[*] 'take_damage' hooked, player will no longer receive damage");
+
+    Some(())
+}
+```
+
+```python Python
+from libmem import *
+import ctypes
+
+# Define the hook function with proper calling convention
+@ctypes.CFUNCTYPE(None, ctypes.c_int)
+def hk_take_damage(amount):
+    print("hooked take_damage! no damage will be taken")
+    return
+
+def main():
+    game_mod = find_module("game.dll")
+    if not game_mod:
+        print("Failed to find game.dll")
+        return
+
+    print(f"[*] Base address of 'game.dll': {hex(game_mod.base)}")
+
+    fn_take_damage = find_symbol_address(game_mod, "take_damage")
+    if fn_take_damage is None:
+        print("Failed to find take_damage function")
+        return
+
+    print(f"[*] Found 'take_damage' function: {hex(fn_take_damage)}")
+
+    hook_code(fn_take_damage, ctypes.cast(hk_take_damage, ctypes.c_void_p).value)
+    print("[*] 'take_damage' hooked, player will no longer receive damage")
+
+if __name__ == "__main__":
+    main()
+```
+</CodeGroup>
+
+## How It Works
+
+<Steps>
+  <Step title="Find the Target Module">
+    Locate the module (DLL/SO) containing the function you want to hook using `LM_FindModule`.
+  </Step>
+  
+  <Step title="Find the Function Address">
+    Use `LM_FindSymbolAddress` to locate the function by its symbol name. If the function isn't exported, you can use pattern scanning instead.
+  </Step>
+  
+  <Step title="Create Hook Function">
+    Write a function with the same signature as the original. This is what will execute when the original function is called.
+  </Step>
+  
+  <Step title="Install the Hook">
+    Call `LM_HookCode` to redirect the original function to your hook function. libmem automatically handles the low-level details.
+  </Step>
+</Steps>
+
+## Hook with Trampoline
+
+If you want to call the original function from your hook, use a trampoline:
+
+<CodeGroup>
+```c C/C++
+#include <libmem/libmem.h>
+
+typedef void (*take_damage_t)(int amount);
+take_damage_t orig_take_damage = NULL;
+
+void hk_take_damage(int amount)
+{
+    printf("[HOOK] Player taking %d damage\n", amount);
+    
+    // Reduce damage by half
+    int reduced_damage = amount / 2;
+    printf("[HOOK] Reducing damage to %d\n", reduced_damage);
+    
+    // Call original function with reduced damage
+    orig_take_damage(reduced_damage);
+}
+
+int main()
+{
+    lm_module_t game_mod;
+    lm_address_t fn_take_damage;
+    lm_address_t trampoline;
+
+    LM_FindModule("game.dll", &game_mod);
+    fn_take_damage = LM_FindSymbolAddress(&game_mod, "take_damage");
+
+    // Hook and save trampoline
+    LM_HookCode(fn_take_damage, (lm_address_t)hk_take_damage, &trampoline);
+    orig_take_damage = (take_damage_t)trampoline;
+
+    printf("[*] Hook installed with trampoline at %p\n", (void*)trampoline);
+
+    return 0;
+}
+```
+
+```rust Rust
+use libmem::*;
+use std::sync::OnceLock;
+
+static ORIGINAL_TAKE_DAMAGE: OnceLock<usize> = OnceLock::new();
+
+extern "C" fn hk_take_damage(amount: i32) {
+    println!("[HOOK] Player taking {} damage", amount);
+    
+    // Reduce damage by half
+    let reduced_damage = amount / 2;
+    println!("[HOOK] Reducing damage to {}", reduced_damage);
+    
+    // Call original function
+    if let Some(&orig) = ORIGINAL_TAKE_DAMAGE.get() {
+        let orig_fn: extern "C" fn(i32) = unsafe { std::mem::transmute(orig) };
+        orig_fn(reduced_damage);
+    }
+}
+
+fn main() -> Option<()> {
+    let game_mod = find_module("game.dll")?;
+    let fn_take_damage = find_symbol_address(&game_mod, "take_damage")?;
+
+    // Hook and save trampoline
+    let trampoline = hook_code(fn_take_damage, hk_take_damage as usize, Some(0))?;
+    ORIGINAL_TAKE_DAMAGE.set(trampoline).ok()?;
+
+    println!("[*] Hook installed with trampoline at {:x}", trampoline);
+
+    Some(())
+}
+```
+
+```python Python
+from libmem import *
+import ctypes
+
+original_take_damage = None
+
+@ctypes.CFUNCTYPE(None, ctypes.c_int)
+def hk_take_damage(amount):
+    print(f"[HOOK] Player taking {amount} damage")
+    
+    # Reduce damage by half
+    reduced_damage = amount // 2
+    print(f"[HOOK] Reducing damage to {reduced_damage}")
+    
+    # Call original function
+    if original_take_damage:
+        original_take_damage(reduced_damage)
+
+def main():
+    global original_take_damage
+    
+    game_mod = find_module("game.dll")
+    fn_take_damage = find_symbol_address(game_mod, "take_damage")
+
+    # Hook and save trampoline
+    trampoline = hook_code(
+        fn_take_damage,
+        ctypes.cast(hk_take_damage, ctypes.c_void_p).value,
+        get_trampoline=True
+    )
+    
+    # Create function pointer to original
+    TAKEDAMAGE_FUNC = ctypes.CFUNCTYPE(None, ctypes.c_int)
+    original_take_damage = TAKEDAMAGE_FUNC(trampoline)
+
+    print(f"[*] Hook installed with trampoline at {hex(trampoline)}")
+
+if __name__ == "__main__":
+    main()
+```
+</CodeGroup>
+
+## Hooking External Processes
+
+You can also hook functions in external processes using the `Ex` variants:
+
+<CodeGroup>
+```c C/C++
+#include <libmem/libmem.h>
+
+int main()
+{
+    lm_process_t target_process;
+    lm_module_t game_mod;
+    lm_address_t fn_take_damage;
+    lm_address_t hook_addr;
+    lm_address_t trampoline;
+
+    // Find target process
+    LM_FindProcess("game.exe", &target_process);
+    
+    // Find module in target process
+    LM_FindModuleEx(&target_process, "game.dll", &game_mod);
+    
+    // Find function in target process
+    fn_take_damage = LM_FindSymbolAddress(&game_mod, "take_damage");
+    
+    // Allocate memory for hook in target process
+    hook_addr = LM_AllocMemoryEx(&target_process, 1024, LM_PROT_XRW);
+    
+    // Write hook code to allocated memory
+    // ... (write your shellcode)
+    
+    // Install hook in target process
+    LM_HookCodeEx(&target_process, fn_take_damage, hook_addr, &trampoline);
+    
+    printf("[*] External hook installed\n");
+
+    return 0;
+}
+```
+
+```rust Rust
+use libmem::*;
+
+fn main() -> Option<()> {
+    // Find target process
+    let target_process = find_process("game.exe")?;
+    
+    // Find module in target process
+    let game_mod = find_module_ex(&target_process, "game.dll")?;
+    
+    // Find function in target process
+    let fn_take_damage = find_symbol_address(&game_mod, "take_damage")?;
+    
+    // Allocate memory for hook in target process
+    let hook_addr = alloc_memory_ex(&target_process, 1024, Prot::XRW)?;
+    
+    // Write hook code to allocated memory
+    // ... (write your shellcode)
+    
+    // Install hook in target process
+    let trampoline = hook_code_ex(&target_process, fn_take_damage, hook_addr, Some(0))?;
+    
+    println!("[*] External hook installed");
+
+    Some(())
+}
+```
+</CodeGroup>
+
+## Unhooking
+
+To remove a hook and restore the original function:
+
+<CodeGroup>
+```c C/C++
+lm_address_t trampoline;
+lm_size_t hook_size;
+
+// When installing the hook, save the trampoline and size
+hook_size = LM_HookCode(fn_take_damage, (lm_address_t)hk_take_damage, &trampoline);
+
+// Later, to unhook:
+LM_UnhookCode(fn_take_damage, trampoline, hook_size);
+printf("[*] Hook removed\n");
+```
+
+```rust Rust
+// When installing the hook
+let (trampoline, hook_size) = hook_code_with_size(fn_take_damage, hk_take_damage as usize, Some(0))?;
+
+// Later, to unhook:
+unhook_code(fn_take_damage, trampoline, hook_size)?;
+println!("[*] Hook removed");
+```
+
+```python Python
+# When installing the hook
+trampoline, hook_size = hook_code(fn_take_damage, hook_func, get_size=True)
+
+# Later, to unhook:
+unhook_code(fn_take_damage, trampoline, hook_size)
+print("[*] Hook removed")
+```
+</CodeGroup>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Match Function Signatures">
+    Ensure your hook function has the exact same calling convention and parameters as the original. Mismatches can cause crashes.
+  </Accordion>
+  
+  <Accordion title="Handle Thread Safety">
+    If the hooked function is called from multiple threads, ensure your hook is thread-safe.
+  </Accordion>
+  
+  <Accordion title="Save Trampoline and Size">
+    Always save the trampoline address and hook size if you plan to unhook later.
+  </Accordion>
+  
+  <Accordion title="Test Thoroughly">
+    Hooks can crash the target process if implemented incorrectly. Test in a safe environment first.
+  </Accordion>
+  
+  <Accordion title="Use Symbol Names When Available">
+    If the function is exported, use `LM_FindSymbolAddress`. Otherwise, use pattern scanning to locate it.
+  </Accordion>
+</AccordionGroup>
+
+## Common Use Cases
+
+- **God Mode**: Prevent damage by hooking health reduction functions
+- **Unlimited Resources**: Hook resource consumption functions and prevent deduction
+- **Function Logging**: Hook functions to log when they're called and with what parameters
+- **Behavior Modification**: Change function behavior by modifying parameters or return values
+- **Anti-Cheat Bypass**: Hook detection functions (educational purposes only)
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Pattern Scanning" icon="magnifying-glass" href="/examples/pattern-scanning">
+    Find functions without symbol information
+  </Card>
+  <Card title="Hook API" icon="book" href="/api-reference/hooking">
+    Explore all hooking functions including VMT hooks
+  </Card>
+</CardGroup>

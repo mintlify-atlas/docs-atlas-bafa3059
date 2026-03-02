@@ -1,0 +1,380 @@
+---
+title: Assembly & Disassembly
+description: Learn how to assemble and disassemble code using libmem's JIT assembly features
+---
+
+This guide covers assembling and disassembling machine code using libmem. These features allow you to create shellcode, analyze existing code, and work with low-level instructions.
+
+## Architecture Support
+
+libmem supports multiple architectures through its assembly and disassembly engines:
+
+- x86 (32-bit)
+- x64 (64-bit)
+- ARM variants (ARMv7, ARMv8, Thumb mode)
+- MIPS (32/64-bit)
+- PowerPC
+- SPARC
+- And more (see `lm_arch_t` enum)
+
+## Disassembling Code
+
+Use `LM_Disassemble` to convert machine code into human-readable assembly instructions.
+
+### Disassembling a Single Instruction
+
+<Steps>
+
+<Step title="Get the address to disassemble">
+Obtain the address of the code you want to disassemble:
+
+```c
+lm_address_t code_addr = (lm_address_t)main;  // Disassemble main function
+```
+</Step>
+
+<Step title="Disassemble the instruction">
+Use `LM_Disassemble` to decode one instruction:
+
+```c
+lm_inst_t inst;
+
+if (LM_Disassemble(code_addr, &inst)) {
+    printf("%lX: %s %s\n",
+           inst.address,
+           inst.mnemonic,
+           inst.op_str);
+    printf("Size: %zu bytes\n", inst.size);
+    
+    // Print raw bytes
+    printf("Bytes: ");
+    for (size_t i = 0; i < inst.size; i++) {
+        printf("%02X ", inst.bytes[i]);
+    }
+    printf("\n");
+}
+```
+</Step>
+
+</Steps>
+
+### Disassembling Multiple Instructions
+
+To disassemble a sequence of instructions:
+
+```c
+lm_address_t disas_addr = (lm_address_t)main;
+
+// Disassemble until we hit a 'ret' instruction
+for (int i = 0; i < 20; i++) {
+    lm_inst_t inst;
+    
+    if (!LM_Disassemble(disas_addr, &inst)) {
+        printf("Failed to disassemble at 0x%lX\n", disas_addr);
+        break;
+    }
+    
+    printf("0x%lX: %s %s\n", inst.address, inst.mnemonic, inst.op_str);
+    
+    // Check if it's a return instruction
+    if (strcmp(inst.mnemonic, "ret") == 0) {
+        printf("Found return instruction\n");
+        break;
+    }
+    
+    // Move to next instruction
+    disas_addr += inst.size;
+}
+```
+
+### Advanced Disassembly with LM_DisassembleEx
+
+For more control, use `LM_DisassembleEx` to disassemble multiple instructions at once:
+
+```c
+lm_address_t code_addr = (lm_address_t)main;
+lm_inst_t *instructions = NULL;
+
+// Disassemble up to 10 instructions
+lm_size_t count = LM_DisassembleEx(
+    code_addr,
+    LM_GetArchitecture(),
+    0,        // max_size (0 = no limit)
+    10,       // instruction_count
+    code_addr,  // runtime_address for relative addressing
+    &instructions
+);
+
+if (count > 0) {
+    printf("Disassembled %zu instructions:\n", count);
+    
+    for (size_t i = 0; i < count; i++) {
+        printf("  0x%lX: %s %s\n",
+               instructions[i].address,
+               instructions[i].mnemonic,
+               instructions[i].op_str);
+    }
+    
+    // Free the instructions when done
+    LM_FreeInstructions(instructions);
+}
+```
+
+## Assembling Code
+
+Use `LM_Assemble` to convert assembly instructions into machine code.
+
+### Assembling a Single Instruction
+
+<Steps>
+
+<Step title="Write your assembly instruction">
+Create a string with the assembly instruction:
+
+```c
+lm_string_t code = "mov rax, rbx";
+```
+</Step>
+
+<Step title="Assemble the instruction">
+Use `LM_Assemble` to convert it to machine code:
+
+```c
+lm_inst_t instruction;
+
+if (LM_Assemble(code, &instruction)) {
+    printf("Assembled: %s\n", code);
+    printf("Machine code: ");
+    for (size_t i = 0; i < instruction.size; i++) {
+        printf("%02X ", instruction.bytes[i]);
+    }
+    printf("\n");
+    printf("Size: %zu bytes\n", instruction.size);
+}
+```
+</Step>
+
+</Steps>
+
+### Assembling Multiple Instructions
+
+Use `LM_AssembleEx` to assemble multiple instructions:
+
+```c
+// Multiple instructions separated by semicolons
+lm_string_t code = "mov rax, rbx; push rax; pop rcx; ret";
+
+lm_byte_t *payload = NULL;
+lm_size_t size = LM_AssembleEx(
+    code,
+    LM_ARCH_X64,
+    0,  // runtime_address
+    &payload
+);
+
+if (size > 0) {
+    printf("Assembled %zu bytes:\n", size);
+    for (size_t i = 0; i < size; i++) {
+        printf("%02X ", payload[i]);
+    }
+    printf("\n");
+    
+    // Free the payload when done
+    LM_FreePayload(payload);
+}
+```
+
+### Assembling with Runtime Address
+
+For position-dependent code (like jumps), specify a runtime address:
+
+```c
+lm_address_t target_addr = 0x140001000;
+
+lm_string_t code = "jmp 0x140001050";
+lm_byte_t *payload = NULL;
+
+lm_size_t size = LM_AssembleEx(
+    code,
+    LM_ARCH_X64,
+    target_addr,  // Runtime address for relative jumps
+    &payload
+);
+
+if (size > 0) {
+    printf("Assembled jump instruction (%zu bytes)\n", size);
+    LM_FreePayload(payload);
+}
+```
+
+## Getting Current Architecture
+
+Use `LM_GetArchitecture` to get the current process architecture:
+
+```c
+lm_arch_t arch = LM_GetArchitecture();
+
+switch (arch) {
+    case LM_ARCH_X86:
+        printf("Architecture: x86 (32-bit)\n");
+        break;
+    case LM_ARCH_X64:
+        printf("Architecture: x64 (64-bit)\n");
+        break;
+    case LM_ARCH_ARMV8:
+        printf("Architecture: ARMv8\n");
+        break;
+    // ... other architectures
+    default:
+        printf("Architecture: Unknown\n");
+        break;
+}
+```
+
+## Calculating Code Length
+
+Use `LM_CodeLength` to get the size of instructions aligned to instruction boundaries:
+
+```c
+lm_address_t func_addr = (lm_address_t)main;
+lm_size_t min_length = 5;  // Need at least 5 bytes for a jump
+
+lm_size_t aligned_size = LM_CodeLength(func_addr, min_length);
+
+if (aligned_size > 0) {
+    printf("Aligned code size: %zu bytes\n", aligned_size);
+    printf("(at least %zu bytes, aligned to instruction boundary)\n", min_length);
+}
+```
+
+This is useful when hooking functions to ensure you don't split instructions.
+
+## Complete Example: Function Disassembly
+
+Here's a complete example that disassembles a function until a return instruction:
+
+```c
+#include <libmem/libmem.h>
+#include <stdio.h>
+#include <string.h>
+
+void print_instruction(const lm_inst_t *inst)
+{
+    // Print address and instruction
+    printf("0x%lX: %-8s %s\n",
+           inst->address,
+           inst->mnemonic,
+           inst->op_str);
+    
+    // Print bytes
+    printf("         [ ");
+    for (size_t i = 0; i < inst->size; i++) {
+        printf("%02X ", inst->bytes[i]);
+    }
+    printf("]\n");
+}
+
+void disassemble_function(lm_address_t func_addr, const char *func_name)
+{
+    printf("\n=== Disassembling %s at 0x%lX ===\n", func_name, func_addr);
+    
+    lm_address_t current_addr = func_addr;
+    int instruction_count = 0;
+    
+    while (instruction_count < 50) {  // Safety limit
+        lm_inst_t inst;
+        
+        if (!LM_Disassemble(current_addr, &inst)) {
+            printf("Error: Failed to disassemble at 0x%lX\n", current_addr);
+            break;
+        }
+        
+        print_instruction(&inst);
+        instruction_count++;
+        
+        // Stop at return instruction
+        if (strcmp(inst.mnemonic, "ret") == 0 || 
+            strcmp(inst.mnemonic, "retn") == 0) {
+            printf("\nFound return after %d instructions\n", instruction_count);
+            break;
+        }
+        
+        current_addr += inst.size;
+    }
+}
+
+int main()
+{
+    printf("libmem Assembly/Disassembly Example\n");
+    printf("====================================\n");
+    
+    // Get architecture info
+    lm_arch_t arch = LM_GetArchitecture();
+    printf("Current architecture: ");
+    if (arch == LM_ARCH_X86) printf("x86 (32-bit)\n");
+    else if (arch == LM_ARCH_X64) printf("x64 (64-bit)\n");
+    else printf("Other\n");
+    
+    // Disassemble the main function
+    disassemble_function((lm_address_t)main, "main");
+    
+    // Assembly example
+    printf("\n=== Assembly Example ===\n");
+    lm_string_t asm_code = "mov rax, 1337";
+    lm_inst_t inst;
+    
+    if (LM_Assemble(asm_code, &inst)) {
+        printf("Assembled: %s\n", asm_code);
+        print_instruction(&inst);
+    }
+    
+    // Multiple instruction assembly
+    printf("\n=== Multi-Instruction Assembly ===\n");
+    lm_string_t multi_code = "push rbp; mov rbp, rsp; sub rsp, 0x20; mov rax, 0";
+    lm_byte_t *payload = NULL;
+    
+    lm_size_t size = LM_AssembleEx(
+        multi_code,
+        arch,
+        0,
+        &payload
+    );
+    
+    if (size > 0) {
+        printf("Code: %s\n", multi_code);
+        printf("Assembled %zu bytes: ", size);
+        for (size_t i = 0; i < size; i++) {
+            printf("%02X ", payload[i]);
+        }
+        printf("\n");
+        
+        LM_FreePayload(payload);
+    }
+    
+    return 0;
+}
+```
+
+## Practical Use Cases
+
+<CardGroup cols={2}>
+<Card title="Code Analysis" icon="magnifying-glass">
+Disassemble functions to understand their behavior and find key instructions.
+</Card>
+
+<Card title="Shellcode Generation" icon="terminal">
+Create custom shellcode for injections or hooks.
+</Card>
+
+<Card title="Patch Generation" icon="screwdriver-wrench">
+Generate NOP sleds or custom patches for modifying game behavior.
+</Card>
+
+<Card title="Hook Size Calculation" icon="ruler">
+Use LM_CodeLength to determine how many bytes to save when hooking.
+</Card>
+</CardGroup>
+
+<Note>
+The assembly and disassembly engines use Keystone (assembly) and Capstone (disassembly) under the hood, providing professional-grade instruction handling.
+</Note>

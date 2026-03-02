@@ -1,0 +1,179 @@
+---
+title: 'Enumerate Threads'
+description: 'Enumerate threads in the current process or a specific process'
+---
+
+## LM_EnumThreads
+
+Enumerates threads in the current process and calls a callback function for each thread found.
+
+### Function Signature
+
+```c
+LM_API lm_bool_t LM_CALL
+LM_EnumThreads(lm_bool_t (LM_CALL *callback)(lm_thread_t *thread,
+                                             lm_void_t   *arg),
+               lm_void_t          *arg);
+```
+
+### Parameters
+
+<ParamField path="callback" type="function pointer" required>
+  The callback function that will receive the current thread in the enumeration and an extra argument. This function should return `LM_TRUE` to continue the enumeration, or `LM_FALSE` to stop it.
+  
+  **Callback Signature:**
+  ```c
+  lm_bool_t (LM_CALL *callback)(lm_thread_t *thread, lm_void_t *arg)
+  ```
+</ParamField>
+
+<ParamField path="arg" type="lm_void_t *">
+  The user-defined data structure that will be passed to the callback function during thread enumeration. This allows you to pass additional information or context to the callback function if needed.
+</ParamField>
+
+### Return Value
+
+<ResponseField name="return" type="lm_bool_t">
+  Returns `LM_TRUE` if the enumeration succeeds, or `LM_FALSE` if it fails.
+</ResponseField>
+
+### Example
+
+```c
+#include <libmem/libmem.h>
+#include <stdio.h>
+
+typedef struct {
+    int count;
+} thread_data_t;
+
+lm_bool_t LM_CALL thread_callback(lm_thread_t *thread, lm_void_t *arg)
+{
+    thread_data_t *data = (thread_data_t *)arg;
+    
+    printf("Thread %d: TID = %u, Owner PID = %u\n",
+           data->count++, thread->tid, thread->owner_pid);
+    
+    return LM_TRUE; // Continue enumeration
+}
+
+int main()
+{
+    thread_data_t data = { 0 };
+    
+    if (LM_EnumThreads(thread_callback, &data)) {
+        printf("Successfully enumerated %d threads\n", data.count);
+    } else {
+        printf("Failed to enumerate threads\n");
+    }
+    
+    return 0;
+}
+```
+
+---
+
+## LM_EnumThreadsEx
+
+Enumerates threads of a given process and invokes a callback function for each thread.
+
+### Function Signature
+
+```c
+LM_API lm_bool_t LM_CALL
+LM_EnumThreadsEx(const lm_process_t *process,
+                 lm_bool_t (LM_CALL *callback)(lm_thread_t *thread,
+                                               lm_void_t   *arg),
+                 lm_void_t          *arg);
+```
+
+### Parameters
+
+<ParamField path="process" type="const lm_process_t *" required>
+  The process you want to enumerate the threads from.
+</ParamField>
+
+<ParamField path="callback" type="function pointer" required>
+  The callback function that will receive the current thread in the enumeration and an extra argument. This function should return `LM_TRUE` to continue the enumeration, or `LM_FALSE` to stop it.
+  
+  **Callback Signature:**
+  ```c
+  lm_bool_t (LM_CALL *callback)(lm_thread_t *thread, lm_void_t *arg)
+  ```
+</ParamField>
+
+<ParamField path="arg" type="lm_void_t *">
+  The user-defined data that can be passed to the callback function. It allows you to provide additional information or context to the callback function when iterating over threads in a process.
+</ParamField>
+
+### Return Value
+
+<ResponseField name="return" type="lm_bool_t">
+  Returns `LM_TRUE` if the enumeration succeeds, or `LM_FALSE` if it fails.
+</ResponseField>
+
+### Example
+
+```c
+#include <libmem/libmem.h>
+#include <stdio.h>
+
+typedef struct {
+    int count;
+} thread_data_t;
+
+lm_bool_t LM_CALL thread_callback(lm_thread_t *thread, lm_void_t *arg)
+{
+    thread_data_t *data = (thread_data_t *)arg;
+    
+    printf("Thread %d: TID = %u, Owner PID = %u\n",
+           data->count++, thread->tid, thread->owner_pid);
+    
+    return LM_TRUE; // Continue enumeration
+}
+
+int main()
+{
+    lm_process_t process;
+    thread_data_t data = { 0 };
+    
+    // Find target process
+    if (!LM_FindProcess("target.exe", &process)) {
+        printf("Failed to find process\n");
+        return 1;
+    }
+    
+    // Enumerate threads in the target process
+    if (LM_EnumThreadsEx(&process, thread_callback, &data)) {
+        printf("Successfully enumerated %d threads in process %u\n",
+               data.count, process.pid);
+    } else {
+        printf("Failed to enumerate threads\n");
+    }
+    
+    return 0;
+}
+```
+
+---
+
+## Thread Structure
+
+The `lm_thread_t` structure contains information about a thread:
+
+```c
+typedef struct lm_thread_t {
+    lm_tid_t tid;       // Thread ID
+    lm_pid_t owner_pid; // Process ID that owns this thread
+} lm_thread_t;
+```
+
+### Fields
+
+<ResponseField name="tid" type="lm_tid_t">
+  The thread identifier (TID).
+</ResponseField>
+
+<ResponseField name="owner_pid" type="lm_pid_t">
+  The process identifier (PID) of the process that owns this thread.
+</ResponseField>

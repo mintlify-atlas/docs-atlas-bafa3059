@@ -1,0 +1,181 @@
+---
+title: Basic Memory Manipulation
+description: Learn how to read and write process memory using libmem
+---
+
+This guide demonstrates the fundamental operations for reading and writing memory in both the current process and external processes.
+
+## Reading Memory
+
+To read memory from a specific address, use `LM_ReadMemory` for the current process or `LM_ReadMemoryEx` for external processes.
+
+<CodeGroup>
+```c C/C++
+#include <libmem/libmem.h>
+
+lm_address_t source_addr = 0x12345678;
+lm_byte_t buffer[256];
+lm_size_t bytes_read;
+
+// Read from current process
+bytes_read = LM_ReadMemory(source_addr, buffer, sizeof(buffer));
+printf("Read %zu bytes\n", bytes_read);
+
+// Read from external process
+lm_process_t target_process;
+LM_FindProcess("game.exe", &target_process);
+bytes_read = LM_ReadMemoryEx(&target_process, source_addr, buffer, sizeof(buffer));
+```
+
+```rust Rust
+use libmem::*;
+
+let source_addr = 0x12345678;
+let mut buffer = vec![0u8; 256];
+
+// Read from current process
+let bytes_read = read_memory(source_addr, &mut buffer);
+println!("Read {} bytes", bytes_read);
+
+// Read from external process
+if let Some(target_process) = find_process("game.exe") {
+    let bytes_read = read_memory_ex(&target_process, source_addr, &mut buffer);
+    println!("Read {} bytes from external process", bytes_read);
+}
+```
+
+```python Python
+from libmem import *
+
+source_addr = 0x12345678
+buffer_size = 256
+
+# Read from current process
+buffer = bytearray(buffer_size)
+bytes_read = read_memory(source_addr, buffer)
+print(f"Read {bytes_read} bytes")
+
+# Read from external process
+process = find_process("game.exe")
+if process:
+    buffer = bytearray(buffer_size)
+    bytes_read = read_memory_ex(process, source_addr, buffer)
+    print(f"Read {bytes_read} bytes from external process")
+```
+</CodeGroup>
+
+## Writing Memory
+
+To write data to memory, use `LM_WriteMemory` for the current process or `LM_WriteMemoryEx` for external processes.
+
+<CodeGroup>
+```c C/C++
+#include <libmem/libmem.h>
+
+lm_address_t dest_addr = 0x12345678;
+lm_byte_t data[] = {0xDE, 0xAD, 0xBE, 0xEF};
+lm_size_t bytes_written;
+
+// Write to current process
+bytes_written = LM_WriteMemory(dest_addr, data, sizeof(data));
+printf("Wrote %zu bytes\n", bytes_written);
+
+// Write to external process
+lm_process_t target_process;
+LM_FindProcess("game.exe", &target_process);
+bytes_written = LM_WriteMemoryEx(&target_process, dest_addr, data, sizeof(data));
+```
+
+```rust Rust
+use libmem::*;
+
+let dest_addr = 0x12345678;
+let data = vec![0xDE, 0xAD, 0xBE, 0xEF];
+
+// Write to current process
+let bytes_written = write_memory(dest_addr, &data);
+println!("Wrote {} bytes", bytes_written);
+
+// Write to external process
+if let Some(target_process) = find_process("game.exe") {
+    let bytes_written = write_memory_ex(&target_process, dest_addr, &data);
+    println!("Wrote {} bytes to external process", bytes_written);
+}
+```
+
+```python Python
+from libmem import *
+
+dest_addr = 0x12345678
+data = bytearray([0xDE, 0xAD, 0xBE, 0xEF])
+
+# Write to current process
+bytes_written = write_memory(dest_addr, data)
+print(f"Wrote {bytes_written} bytes")
+
+# Write to external process
+process = find_process("game.exe")
+if process:
+    bytes_written = write_memory_ex(process, dest_addr, data)
+    print(f"Wrote {bytes_written} bytes to external process")
+```
+</CodeGroup>
+
+## Setting Memory
+
+You can fill a memory region with a specific byte value using `LM_SetMemory` or `LM_SetMemoryEx`.
+
+<CodeGroup>
+```c C/C++
+#include <libmem/libmem.h>
+
+lm_address_t dest_addr = 0x12345678;
+lm_size_t region_size = 1024;
+lm_byte_t fill_byte = 0x90; // NOP instruction
+
+// Fill memory in current process
+lm_size_t bytes_set = LM_SetMemory(dest_addr, fill_byte, region_size);
+printf("Set %zu bytes to 0x%02X\n", bytes_set, fill_byte);
+```
+
+```rust Rust
+use libmem::*;
+
+let dest_addr = 0x12345678;
+let region_size = 1024;
+let fill_byte = 0x90; // NOP instruction
+
+// Fill memory in current process
+let bytes_set = set_memory(dest_addr, fill_byte, region_size);
+println!("Set {} bytes to 0x{:02X}", bytes_set, fill_byte);
+```
+
+```python Python
+from libmem import *
+
+dest_addr = 0x12345678
+region_size = 1024
+fill_byte = 0x90  # NOP instruction
+
+# Fill memory in current process
+bytes_set = set_memory(dest_addr, fill_byte, region_size)
+print(f"Set {bytes_set} bytes to 0x{fill_byte:02X}")
+```
+</CodeGroup>
+
+## Key Concepts
+
+- **Internal vs External**: Functions without the `Ex` suffix operate on the current process, while `Ex` variants work on external processes
+- **Return Values**: Memory functions return the number of bytes successfully read/written, which may be less than requested if an error occurs
+- **Process Handle**: External operations require a valid `lm_process_t` structure obtained from functions like `LM_FindProcess`
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Pattern Scanning" icon="magnifying-glass" href="/examples/pattern-scanning">
+    Learn to find specific byte patterns in memory
+  </Card>
+  <Card title="Pointer Chains" icon="link" href="/examples/pointer-chains">
+    Resolve multi-level pointer chains
+  </Card>
+</CardGroup>

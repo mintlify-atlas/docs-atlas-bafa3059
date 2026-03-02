@@ -1,0 +1,258 @@
+---
+title: Process Enumeration
+description: Learn how to enumerate, find, and retrieve process information using libmem
+---
+
+This guide covers how to work with processes in libmem, including enumerating all processes on the system, finding specific processes by name, and retrieving process information.
+
+## Process Structure
+
+The `lm_process_t` structure contains information about a process:
+
+```c
+typedef struct lm_process_t {
+    lm_pid_t  pid;         // Process ID
+    lm_pid_t  ppid;        // Parent Process ID
+    lm_arch_t arch;        // Process architecture
+    lm_size_t bits;        // Process bits (32 or 64)
+    lm_time_t start_time;  // Start timestamp in milliseconds since boot
+    lm_char_t path[LM_PATH_MAX];  // Full path to executable
+    lm_char_t name[LM_PATH_MAX];  // Process name
+} lm_process_t;
+```
+
+## Enumerating All Processes
+
+Use `LM_EnumProcesses` to iterate through all processes on the system:
+
+<Steps>
+
+<Step title="Define a callback function">
+The callback receives each process and should return `LM_TRUE` to continue enumeration or `LM_FALSE` to stop:
+
+```c
+lm_bool_t process_callback(lm_process_t *process, lm_void_t *arg)
+{
+    printf("Process: %s (PID: %d)\n", process->name, process->pid);
+    return LM_TRUE;  // Continue enumeration
+}
+```
+</Step>
+
+<Step title="Call LM_EnumProcesses">
+Pass your callback function to enumerate all processes:
+
+```c
+if (LM_EnumProcesses(process_callback, LM_NULLPTR)) {
+    printf("Successfully enumerated processes\n");
+} else {
+    printf("Failed to enumerate processes\n");
+}
+```
+</Step>
+
+<Step title="Use custom data (optional)">
+You can pass custom data to your callback using the `arg` parameter:
+
+```c
+typedef struct {
+    int count;
+    lm_pid_t target_pid;
+} process_data_t;
+
+lm_bool_t count_callback(lm_process_t *process, lm_void_t *arg)
+{
+    process_data_t *data = (process_data_t *)arg;
+    data->count++;
+    
+    if (process->pid == data->target_pid) {
+        printf("Found target process!\n");
+        return LM_FALSE;  // Stop enumeration
+    }
+    
+    return LM_TRUE;
+}
+
+process_data_t data = { .count = 0, .target_pid = 1234 };
+LM_EnumProcesses(count_callback, &data);
+printf("Total processes: %d\n", data.count);
+```
+</Step>
+
+</Steps>
+
+## Finding a Specific Process
+
+Use `LM_FindProcess` to locate a process by name:
+
+<Steps>
+
+<Step title="Prepare the process structure">
+Declare a `lm_process_t` variable to store the result:
+
+```c
+lm_process_t target_process;
+```
+</Step>
+
+<Step title="Search by process name">
+Call `LM_FindProcess` with the process name:
+
+```c
+if (LM_FindProcess("game.exe", &target_process)) {
+    printf("Found process: %s\n", target_process.name);
+    printf("PID: %d\n", target_process.pid);
+    printf("Path: %s\n", target_process.path);
+    printf("Bits: %zu\n", target_process.bits);
+} else {
+    printf("Process not found\n");
+}
+```
+
+<Note>
+You can also use relative paths like `/game/hello` for a process at `/usr/share/game/hello`.
+</Note>
+</Step>
+
+</Steps>
+
+## Getting Current Process Information
+
+Retrieve information about the current process using `LM_GetProcess`:
+
+```c
+lm_process_t current_process;
+
+if (LM_GetProcess(&current_process)) {
+    printf("Current Process: %s\n", current_process.name);
+    printf("PID: %d\n", current_process.pid);
+    printf("Parent PID: %d\n", current_process.ppid);
+    printf("Architecture bits: %zu\n", current_process.bits);
+}
+```
+
+## Getting Process Information by PID
+
+Use `LM_GetProcessEx` to retrieve information about a specific process by its PID:
+
+```c
+lm_pid_t target_pid = 1234;
+lm_process_t process;
+
+if (LM_GetProcessEx(target_pid, &process)) {
+    printf("Process name: %s\n", process.name);
+    printf("Process path: %s\n", process.path);
+} else {
+    printf("Failed to get process information\n");
+}
+```
+
+## Checking if a Process is Alive
+
+Verify if a process is still running:
+
+```c
+lm_process_t process;
+
+if (LM_FindProcess("game.exe", &process)) {
+    if (LM_IsProcessAlive(&process)) {
+        printf("Process is still running\n");
+    } else {
+        printf("Process has terminated\n");
+    }
+}
+```
+
+## Getting Command Line Arguments
+
+Retrieve the command line arguments of a process:
+
+```c
+lm_process_t process;
+
+if (LM_FindProcess("game.exe", &process)) {
+    lm_char_t **cmdline = LM_GetCommandLine(&process);
+    
+    if (cmdline) {
+        for (int i = 0; cmdline[i] != LM_NULLPTR; i++) {
+            printf("Arg[%d]: %s\n", i, cmdline[i]);
+        }
+        
+        // Free the command line when done
+        LM_FreeCommandLine(cmdline);
+    }
+}
+```
+
+<Warning>
+On Windows, `LM_GetCommandLine` requires reading process memory and may fail if you don't have sufficient privileges.
+</Warning>
+
+## Getting System Information
+
+Get information about the current process and system architecture:
+
+```c
+// Get current process bits (32 or 64)
+lm_size_t process_bits = LM_GetBits();
+printf("Process is %zu-bit\n", process_bits);
+
+// Get system bits
+lm_size_t system_bits = LM_GetSystemBits();
+printf("System is %zu-bit\n", system_bits);
+```
+
+## Complete Example
+
+Here's a complete example that demonstrates process enumeration and searching:
+
+```c
+#include <libmem/libmem.h>
+#include <stdio.h>
+
+typedef struct {
+    int total;
+    int bits_64;
+} process_stats_t;
+
+lm_bool_t stats_callback(lm_process_t *process, lm_void_t *arg)
+{
+    process_stats_t *stats = (process_stats_t *)arg;
+    stats->total++;
+    
+    if (process->bits == 64) {
+        stats->bits_64++;
+    }
+    
+    return LM_TRUE;
+}
+
+int main()
+{
+    // Get current process info
+    lm_process_t current;
+    if (LM_GetProcess(&current)) {
+        printf("Current process: %s (PID: %d)\n", current.name, current.pid);
+    }
+    
+    // Count process statistics
+    process_stats_t stats = { .total = 0, .bits_64 = 0 };
+    LM_EnumProcesses(stats_callback, &stats);
+    printf("Total processes: %d\n", stats.total);
+    printf("64-bit processes: %d\n", stats.bits_64);
+    printf("32-bit processes: %d\n", stats.total - stats.bits_64);
+    
+    // Find a specific process
+    lm_process_t target;
+    if (LM_FindProcess("game.exe", &target)) {
+        printf("\nFound target process:\n");
+        printf("  Name: %s\n", target.name);
+        printf("  PID: %d\n", target.pid);
+        printf("  Path: %s\n", target.path);
+        printf("  Bits: %zu\n", target.bits);
+        printf("  Alive: %s\n", LM_IsProcessAlive(&target) ? "Yes" : "No");
+    }
+    
+    return 0;
+}
+```

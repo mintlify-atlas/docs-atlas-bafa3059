@@ -1,0 +1,105 @@
+---
+title: Signature Scan
+description: Scan memory using IDA-style byte signatures
+---
+
+Signature scan functions search for byte patterns in memory using IDA-style signature strings with hexadecimal values and wildcards. This is a more convenient format than pattern scanning as it uses a single string.
+
+## LM_SigScan
+
+Searches for a specific signature pattern in memory starting from a given address within a specified scan size in the current process.
+
+```c
+lm_address_t LM_SigScan(
+    lm_string_t  signature,
+    lm_address_t address,
+    lm_size_t    scansize
+);
+```
+
+<ParamField path="signature" type="lm_string_t" required>
+  The signature to be scanned for in memory. It is used to identify a specific pattern of bytes in memory. You can use `??` to match against any byte, or the byte's hexadecimal value. Example: `"DE AD BE EF ?? ?? 13 37"`.
+</ParamField>
+
+<ParamField path="address" type="lm_address_t" required>
+  The starting memory address where the signature scanning will begin. The function will scan the memory starting from this address to find the pattern match.
+</ParamField>
+
+<ParamField path="scansize" type="lm_size_t" required>
+  The size of the memory region to scan starting from the `address` parameter. It specifies the number of bytes to search for the signature pattern within the memory region.
+</ParamField>
+
+### Returns
+
+Returns either the address of the pattern match found in the specified memory range or `LM_ADDRESS_BAD` if no match is found (or an error occurs).
+
+---
+
+## LM_SigScanEx
+
+Searches for a specific signature pattern in memory from a remote process starting from a specific address within a specified scan size.
+
+```c
+lm_address_t LM_SigScanEx(
+    const lm_process_t *process,
+    lm_string_t         signature,
+    lm_address_t        address,
+    lm_size_t           scansize
+);
+```
+
+<ParamField path="process" type="const lm_process_t*" required>
+  The process whose memory will be scanned.
+</ParamField>
+
+<ParamField path="signature" type="lm_string_t" required>
+  The signature to be scanned for in memory. It is used to identify a specific pattern of bytes in memory. You can use `??` to match against any byte, or the byte's hexadecimal value. Example: `"DE AD BE EF ?? ?? 13 37"`.
+</ParamField>
+
+<ParamField path="address" type="lm_address_t" required>
+  The starting memory address where the signature scanning will begin. The function will scan the memory starting from this address to find the pattern match.
+</ParamField>
+
+<ParamField path="scansize" type="lm_size_t" required>
+  The size of the memory region to scan starting from the `address` parameter. It specifies the number of bytes to search for the signature pattern within the memory region.
+</ParamField>
+
+### Returns
+
+Returns either the address of the pattern match found in the specified memory range or `LM_ADDRESS_BAD` if no match is found (or an error occurs).
+
+---
+
+## Example (Rust)
+
+```rust
+use libmem::*;
+
+fn godmode() -> Option<()> {
+    let game_process = find_process("game_linux64")?;
+    let client_module = find_module_ex(&game_process, "libclient.so")?;
+
+    let fn_update_health = sig_scan_ex(
+        &game_process,
+        "55 48 89 E5 66 B8 ?? ?? 48 8B 5D FC",
+        client_module.base,
+        client_module.size,
+    )?;
+    println!(
+        "[*] Signature scan result for 'update_health' function: {}",
+        fn_update_health
+    );
+
+    let shellcode = assemble_ex("mov rbx, 1337; mov [rdi], rbx; ret", Arch::X64, 0)?;
+    write_memory_ex(&game_process, fn_update_health + 8, &shellcode.as_slice())?;
+    println!("[*] Patched 'update_health' function to always set health to 1337!");
+
+    Some(())
+}
+
+fn main() {
+    godmode();
+}
+```
+
+This example demonstrates using signature scanning to locate a function in a game, then patching it with custom assembly code. The signature uses `??` wildcards for bytes that may vary between game versions.

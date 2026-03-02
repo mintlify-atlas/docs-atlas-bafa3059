@@ -1,0 +1,327 @@
+---
+title: Function Hooking
+description: Learn how to hook and unhook functions using libmem's code hooking API
+---
+
+This guide covers function hooking (also called detouring) using libmem. Function hooks allow you to intercept function calls and redirect them to your own code, with the option to call the original function.
+
+## How Function Hooking Works
+
+Function hooking works by:
+1. Overwriting the beginning of a target function with a jump to your hook function
+2. Optionally creating a "trampoline" that preserves the original instructions and allows calling the original function
+3. Your hook function can execute custom code and optionally call the original function via the trampoline
+
+## Basic Function Hooking
+
+Use `LM_HookCode` to place a hook on a function in the current process.
+
+<Steps>
+
+<Step title="Create your hook function">
+Write a replacement function with the same signature as the target:
+
+```c
+void hk_take_damage(int amount)
+{
+    printf("Hook: take_damage called with amount: %d\n", amount);
+    printf("Damage blocked!\n");
+    return;
+}
+```
+</Step>
+
+<Step title="Find the target function">
+Locate the function you want to hook:
+
+```c
+lm_module_t game_mod;
+LM_FindModule("game.dll", &game_mod);
+
+lm_address_t fn_take_damage = LM_FindSymbolAddress(&game_mod, "take_damage");
+
+if (fn_take_damage == LM_ADDRESS_BAD) {
+    printf("Function not found\n");
+    return;
+}
+
+printf("Found take_damage at: 0x%lX\n", fn_take_damage);
+```
+</Step>
+
+<Step title="Install the hook">
+Use `LM_HookCode` to install the hook:
+
+```c
+lm_size_t hook_size = LM_HookCode(
+    fn_take_damage,
+    (lm_address_t)hk_take_damage,
+    LM_NULLPTR  // No trampoline needed
+);
+
+if (hook_size > 0) {
+    printf("Successfully hooked take_damage (%zu bytes)\n", hook_size);
+} else {
+    printf("Failed to hook function\n");
+}
+```
+</Step>
+
+</Steps>
+
+## Hooking with Trampolines
+
+Use a trampoline to call the original function from your hook.
+
+<Steps>
+
+<Step title="Declare a function pointer">
+Create a pointer to store the trampoline address:
+
+```c
+typedef void (*take_damage_fn)(int amount);
+take_damage_fn orig_take_damage = NULL;
+```
+</Step>
+
+<Step title="Create your hook with original call">
+Your hook can now call the original function:
+
+```c
+void hk_take_damage(int amount)
+{
+    printf("Hook: Intercepted damage: %d\n", amount);
+    
+    // Reduce damage by half
+    int reduced_damage = amount / 2;
+    printf("Hook: Reducing damage to: %d\n", reduced_damage);
+    
+    // Call the original function with modified damage
+    orig_take_damage(reduced_damage);
+}
+```
+</Step>
+
+<Step title="Install hook with trampoline">
+Pass a pointer to receive the trampoline address:
+
+```c
+lm_address_t trampoline = 0;
+lm_size_t hook_size = LM_HookCode(
+    fn_take_damage,
+    (lm_address_t)hk_take_damage,
+    &trampoline
+);
+
+if (hook_size > 0 && trampoline != LM_ADDRESS_BAD) {
+    orig_take_damage = (take_damage_fn)trampoline;
+    printf("Hook installed with trampoline at: 0x%lX\n", trampoline);
+}
+```
+</Step>
+
+</Steps>
+
+## Unhooking Functions
+
+Use `LM_UnhookCode` to remove a hook and restore the original function.
+
+<Steps>
+
+<Step title="Store hook information">
+Keep track of the hook details when installing:
+
+```c
+lm_address_t original_addr = fn_take_damage;
+lm_address_t trampoline = 0;
+lm_size_t hook_size = LM_HookCode(
+    fn_take_damage,
+    (lm_address_t)hk_take_damage,
+    &trampoline
+);
+```
+</Step>
+
+<Step title="Remove the hook">
+Call `LM_UnhookCode` with the stored information:
+
+```c
+if (LM_UnhookCode(original_addr, trampoline, hook_size)) {
+    printf("Successfully unhooked function\n");
+    orig_take_damage = NULL;
+} else {
+    printf("Failed to unhook function\n");
+}
+```
+</Step>
+
+</Steps>
+
+<Warning>
+Always unhook functions before your program exits to prevent crashes. The unhook function also frees the trampoline memory.
+</Warning>
+
+## Hooking Remote Processes
+
+Use `LM_HookCodeEx` to hook functions in remote processes.
+
+```c
+lm_process_t process;
+LM_FindProcess("game.exe", &process);
+
+lm_module_t game_mod;
+LM_FindModuleEx(&process, "game.dll", &game_mod);
+
+// Find function via signature scan
+lm_address_t fn_addr = LM_SigScanEx(
+    &process,
+    "55 48 89 E5 48 83 EC 20",
+    game_mod.base,
+    game_mod.size
+);
+
+// Allocate memory for hook in target process
+lm_address_t hook_addr = LM_AllocMemoryEx(&process, 1024, LM_PROT_XRW);
+
+// Write your shellcode/hook to the allocated memory
+lm_byte_t hook_code[] = {
+    0xC3  // RET (simple example)
+};
+LM_WriteMemoryEx(&process, hook_addr, hook_code, sizeof(hook_code));
+
+// Install the hook
+lm_address_t trampoline = 0;
+lm_size_t hook_size = LM_HookCodeEx(
+    &process,
+    fn_addr,
+    hook_addr,
+    &trampoline
+);
+
+if (hook_size > 0) {
+    printf("Remote hook installed\n");
+}
+```
+
+## Complete Example: God Mode Hook
+
+Here's a complete example that hooks a damage function to implement god mode:
+
+```c
+#include <libmem/libmem.h>
+#include <stdio.h>
+
+// Function pointer type for the original function
+typedef void (*apply_damage_fn)(void *player, int damage);
+apply_damage_fn orig_apply_damage = NULL;
+
+// Our hook function
+void hk_apply_damage(void *player, int damage)
+{
+    printf("[HOOK] apply_damage called\n");
+    printf("[HOOK] Player: %p, Damage: %d\n", player, damage);
+    printf("[HOOK] Damage blocked by god mode!\n");
+    
+    // Don't call original function - player takes no damage
+}
+
+// Alternative: Damage reduction hook
+void hk_apply_damage_reduced(void *player, int damage)
+{
+    printf("[HOOK] Original damage: %d\n", damage);
+    
+    // Reduce damage to 10%
+    int reduced = damage / 10;
+    printf("[HOOK] Reduced damage: %d\n", reduced);
+    
+    // Call original with reduced damage
+    orig_apply_damage(player, reduced);
+}
+
+int main()
+{
+    lm_module_t game_mod;
+    
+    // Find the game module
+    if (!LM_FindModule("game.dll", &game_mod)) {
+        printf("Failed to find game.dll\n");
+        return 1;
+    }
+    
+    printf("Found game.dll at: 0x%lX\n", game_mod.base);
+    
+    // Find the apply_damage function
+    lm_address_t fn_apply_damage = LM_FindSymbolAddress(
+        &game_mod,
+        "apply_damage"
+    );
+    
+    if (fn_apply_damage == LM_ADDRESS_BAD) {
+        printf("Failed to find apply_damage function\n");
+        return 1;
+    }
+    
+    printf("Found apply_damage at: 0x%lX\n", fn_apply_damage);
+    
+    // Install the hook
+    lm_address_t trampoline = 0;
+    lm_size_t hook_size = LM_HookCode(
+        fn_apply_damage,
+        (lm_address_t)hk_apply_damage,
+        &trampoline
+    );
+    
+    if (hook_size == 0 || trampoline == LM_ADDRESS_BAD) {
+        printf("Failed to install hook\n");
+        return 1;
+    }
+    
+    orig_apply_damage = (apply_damage_fn)trampoline;
+    printf("Hook installed successfully!\n");
+    printf("  Hook size: %zu bytes\n", hook_size);
+    printf("  Trampoline: 0x%lX\n", trampoline);
+    printf("\nGod mode activated! Player will take no damage.\n");
+    
+    // Wait for user input
+    printf("\nPress Enter to remove hook...\n");
+    getchar();
+    
+    // Unhook the function
+    if (LM_UnhookCode(fn_apply_damage, trampoline, hook_size)) {
+        printf("Hook removed successfully\n");
+        orig_apply_damage = NULL;
+    } else {
+        printf("Failed to remove hook\n");
+    }
+    
+    return 0;
+}
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+<Card title="Store Hook Info" icon="database">
+Always store the original address, trampoline, and hook size for later unhooking.
+</Card>
+
+<Card title="Function Signatures" icon="signature">
+Ensure your hook function has the exact same signature (parameters and return type) as the original.
+</Card>
+
+<Card title="Unhook on Exit" icon="right-from-bracket">
+Always unhook before your program exits to prevent crashes and memory leaks.
+</Card>
+
+<Card title="Test Thoroughly" icon="vial">
+Test hooks carefully as they can cause crashes if implemented incorrectly.
+</Card>
+</CardGroup>
+
+## Common Use Cases
+
+- **God Mode**: Hook damage functions to block or reduce damage
+- **Infinite Ammo**: Hook ammo consumption functions
+- **Function Logging**: Hook functions to log when and how they're called
+- **Anti-Cheat Bypass**: Hook detection functions (educational purposes only)
+- **Behavior Modification**: Change how game mechanics work

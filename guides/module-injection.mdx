@@ -1,0 +1,355 @@
+---
+title: Module Injection
+description: Learn how to load and unload modules (DLLs/shared libraries) in processes
+---
+
+This guide covers loading and unloading modules (DLLs on Windows, shared objects on Linux) into processes using libmem. Module injection is useful for loading custom code into games and applications.
+
+## Module Structure
+
+The `lm_module_t` structure contains information about a loaded module:
+
+```c
+typedef struct lm_module_t {
+    lm_address_t base;              // Module base address
+    lm_address_t end;               // Module end address
+    lm_size_t    size;              // Module size
+    lm_char_t    path[LM_PATH_MAX]; // Full path to module
+    lm_char_t    name[LM_PATH_MAX]; // Module name
+} lm_module_t;
+```
+
+## Loading Modules into Current Process
+
+Use `LM_LoadModule` to load a module into the current process.
+
+<Steps>
+
+<Step title="Prepare the module path">
+Specify the full path to the module you want to load:
+
+```c
+#ifdef _WIN32
+lm_string_t module_path = "C:\\mods\\myhack.dll";
+#else
+lm_string_t module_path = "/home/user/mods/myhack.so";
+#endif
+```
+</Step>
+
+<Step title="Load the module">
+Use `LM_LoadModule` to inject the module:
+
+```c
+lm_module_t loaded_mod;
+
+if (LM_LoadModule(module_path, &loaded_mod)) {
+    printf("Module loaded successfully!\n");
+    printf("Name: %s\n", loaded_mod.name);
+    printf("Base: %p\n", (void*)loaded_mod.base);
+    printf("Size: 0x%zX bytes\n", loaded_mod.size);
+} else {
+    printf("Failed to load module\n");
+}
+```
+
+<Note>
+The module parameter is optional. Pass `LM_NULLPTR` if you don't need the module information.
+</Note>
+</Step>
+
+</Steps>
+
+### Loading Without Storing Module Info
+
+```c
+if (LM_LoadModule("myhack.dll", LM_NULLPTR)) {
+    printf("Module loaded\n");
+}
+```
+
+## Loading Modules into Remote Process
+
+Use `LM_LoadModuleEx` to inject a module into another process.
+
+<Steps>
+
+<Step title="Find the target process">
+Obtain a reference to the target process:
+
+```c
+lm_process_t process;
+
+if (!LM_FindProcess("game.exe", &process)) {
+    printf("Process not found\n");
+    return;
+}
+
+printf("Target process: %s (PID: %d)\n", process.name, process.pid);
+```
+</Step>
+
+<Step title="Inject the module">
+Use `LM_LoadModuleEx` to load the module into the remote process:
+
+```c
+lm_string_t dll_path = "C:\\\\mods\\\\cheat.dll";  // Use full path
+lm_module_t injected_mod;
+
+if (LM_LoadModuleEx(&process, dll_path, &injected_mod)) {
+    printf("Module injected successfully!\n");
+    printf("Name: %s\n", injected_mod.name);
+    printf("Base address: %p\n", (void*)injected_mod.base);
+    printf("Size: 0x%zX bytes\n", injected_mod.size);
+} else {
+    printf("Failed to inject module\n");
+}
+```
+
+<Warning>
+On Windows, you may need administrator privileges to inject into other processes. On Linux, you typically need to run as root or have appropriate permissions.
+</Warning>
+</Step>
+
+</Steps>
+
+## Finding Loaded Modules
+
+Before injecting, you might want to check if a module is already loaded.
+
+### Finding Module in Current Process
+
+```c
+lm_module_t mod;
+
+if (LM_FindModule("game.dll", &mod)) {
+    printf("Module already loaded at: %p\n", (void*)mod.base);
+} else {
+    printf("Module not loaded, injecting...\n");
+    LM_LoadModule("C:\\\\path\\\\to\\\\game.dll", &mod);
+}
+```
+
+### Finding Module in Remote Process
+
+```c
+lm_process_t process;
+LM_FindProcess("game.exe", &process);
+
+lm_module_t mod;
+if (LM_FindModuleEx(&process, "cheat.dll", &mod)) {
+    printf("Cheat already injected\n");
+} else {
+    printf("Injecting cheat...\n");
+    LM_LoadModuleEx(&process, "C:\\\\cheats\\\\cheat.dll", &mod);
+}
+```
+
+## Enumerating All Modules
+
+Use `LM_EnumModules` or `LM_EnumModulesEx` to list all loaded modules:
+
+```c
+lm_bool_t module_callback(lm_module_t *module, lm_void_t *arg)
+{
+    printf("Module: %s\n", module->name);
+    printf("  Path: %s\n", module->path);
+    printf("  Base: %p\n", (void*)module->base);
+    printf("  Size: 0x%zX\n\n", module->size);
+    return LM_TRUE;
+}
+
+// Enumerate modules in current process
+LM_EnumModules(module_callback, LM_NULLPTR);
+
+// Enumerate modules in remote process
+lm_process_t process;
+LM_FindProcess("game.exe", &process);
+LM_EnumModulesEx(&process, module_callback, LM_NULLPTR);
+```
+
+## Unloading Modules
+
+Use `LM_UnloadModule` to unload a module from the current process.
+
+<Steps>
+
+<Step title="Find the module to unload">
+Get the module information:
+
+```c
+lm_module_t mod;
+
+if (!LM_FindModule("myhack.dll", &mod)) {
+    printf("Module not found\n");
+    return;
+}
+```
+</Step>
+
+<Step title="Unload the module">
+Use `LM_UnloadModule` to remove it:
+
+```c
+if (LM_UnloadModule(&mod)) {
+    printf("Module unloaded successfully\n");
+} else {
+    printf("Failed to unload module\n");
+}
+```
+</Step>
+
+</Steps>
+
+### Unloading from Remote Process
+
+Use `LM_UnloadModuleEx` to unload from a remote process:
+
+```c
+lm_process_t process;
+LM_FindProcess("game.exe", &process);
+
+lm_module_t mod;
+if (LM_FindModuleEx(&process, "cheat.dll", &mod)) {
+    if (LM_UnloadModuleEx(&process, &mod)) {
+        printf("Cheat unloaded from game\n");
+    }
+}
+```
+
+## Complete Example: DLL Injector
+
+Here's a complete example that injects and unloads a DLL:
+
+```c
+#include <libmem/libmem.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+void print_module_info(const lm_module_t *mod)
+{
+    printf("  Name: %s\n", mod->name);
+    printf("  Path: %s\n", mod->path);
+    printf("  Base: %p\n", (void*)mod->base);
+    printf("  End:  %p\n", (void*)mod->end);
+    printf("  Size: 0x%zX bytes (%.2f MB)\n",
+           mod->size, mod->size / 1024.0 / 1024.0);
+}
+
+int main(int argc, char *argv[])
+{
+    if (argc < 3) {
+        printf("Usage: %s <process_name> <dll_path>\n", argv[0]);
+        printf("Example: %s game.exe C:\\\\mods\\\\hack.dll\n", argv[0]);
+        return 1;
+    }
+    
+    lm_string_t process_name = argv[1];
+    lm_string_t dll_path = argv[2];
+    
+    printf("LibMem DLL Injector\n");
+    printf("===================\n\n");
+    
+    // Find target process
+    printf("[*] Finding process: %s\n", process_name);
+    lm_process_t process;
+    
+    if (!LM_FindProcess(process_name, &process)) {
+        printf("[!] Process not found\n");
+        return 1;
+    }
+    
+    printf("[+] Found process:\n");
+    printf("    Name: %s\n", process.name);
+    printf("    PID:  %d\n", process.pid);
+    printf("    Path: %s\n", process.path);
+    printf("    Bits: %zu\n\n", process.bits);
+    
+    // Check if already injected
+    printf("[*] Checking if module is already loaded...\n");
+    lm_module_t existing_mod;
+    
+    // Extract just the filename from the path
+    lm_string_t dll_name = strrchr(dll_path, '\\');
+    if (!dll_name) dll_name = strrchr(dll_path, '/');
+    if (dll_name) dll_name++; else dll_name = dll_path;
+    
+    if (LM_FindModuleEx(&process, dll_name, &existing_mod)) {
+        printf("[!] Module already loaded:\n");
+        print_module_info(&existing_mod);
+        
+        printf("\n[*] Unload module? (y/n): ");
+        char choice = getchar();
+        
+        if (choice == 'y' || choice == 'Y') {
+            if (LM_UnloadModuleEx(&process, &existing_mod)) {
+                printf("[+] Module unloaded successfully\n");
+            } else {
+                printf("[!] Failed to unload module\n");
+                return 1;
+            }
+        } else {
+            printf("[*] Exiting...\n");
+            return 0;
+        }
+    }
+    
+    // Inject the DLL
+    printf("\n[*] Injecting: %s\n", dll_path);
+    lm_module_t injected_mod;
+    
+    if (!LM_LoadModuleEx(&process, dll_path, &injected_mod)) {
+        printf("[!] Injection failed\n");
+        return 1;
+    }
+    
+    printf("[+] Injection successful!\n\n");
+    print_module_info(&injected_mod);
+    
+    // Wait for user input to unload
+    printf("\nPress Enter to unload the module...\n");
+    while (getchar() != '\n');  // Clear input buffer
+    getchar();
+    
+    printf("[*] Unloading module...\n");
+    if (LM_UnloadModuleEx(&process, &injected_mod)) {
+        printf("[+] Module unloaded successfully\n");
+    } else {
+        printf("[!] Failed to unload module\n");
+    }
+    
+    return 0;
+}
+```
+
+## Important Notes
+
+<CardGroup cols={2}>
+<Card title="Full Paths" icon="route">
+Always use absolute paths when loading modules to avoid path resolution issues.
+</Card>
+
+<Card title="Architecture Match" icon="microchip">
+Ensure the module architecture (32/64-bit) matches the target process.
+</Card>
+
+<Card title="Permissions" icon="shield">
+You may need elevated privileges to inject into other processes.
+</Card>
+
+<Card title="Clean Unload" icon="trash">
+Always unload injected modules cleanly to prevent crashes.
+</Card>
+</CardGroup>
+
+## Common Use Cases
+
+- **Mod loading**: Inject custom game modifications
+- **Cheat injection**: Load cheat DLLs into games (educational purposes)
+- **Plugin systems**: Dynamically load plugins into applications
+- **Code injection**: Inject custom functionality into running processes
+- **Debugging**: Load debugging/profiling tools into target processes
+
+<Warning>
+Be aware of anti-cheat systems when injecting modules into games. Module injection can be detected and may result in bans.
+</Warning>

@@ -1,0 +1,318 @@
+---
+title: 'LM_FindSegment'
+description: 'Find a memory segment containing a specific address'
+---
+
+## LM_FindSegment
+
+Searches for a memory segment that a given address is within and populates the `segment_out` parameter with the result.
+
+### Signature
+
+```c
+LM_API lm_bool_t LM_CALL
+LM_FindSegment(lm_address_t  address,
+               lm_segment_t *segment_out);
+```
+
+### Parameters
+
+<ParamField path="address" type="lm_address_t" required>
+  The address to search for.
+</ParamField>
+
+<ParamField path="segment_out" type="lm_segment_t *" required>
+  A pointer to an `lm_segment_t` structure to populate with information about the segment that contains the specified address.
+</ParamField>
+
+### Return Value
+
+Returns `LM_TRUE` if the specified address is found within a segment, or `LM_FALSE` otherwise.
+
+### Segment Structure
+
+The `lm_segment_t` structure contains information about a memory segment:
+
+```c
+typedef struct lm_segment_t {
+    lm_address_t base;  // Base address of the segment
+    lm_address_t end;   // End address of the segment
+    lm_size_t    size;  // Size of the segment in bytes
+    lm_prot_t    prot;  // Memory protection flags
+} lm_segment_t;
+```
+
+#### Memory Protection Flags
+
+The `prot` field can be a combination of the following flags:
+
+- `LM_PROT_NONE` - No protection
+- `LM_PROT_R` - Read permission
+- `LM_PROT_W` - Write permission
+- `LM_PROT_X` - Execute permission
+- `LM_PROT_XR` - Execute and read permissions
+- `LM_PROT_XW` - Execute and write permissions
+- `LM_PROT_RW` - Read and write permissions
+- `LM_PROT_XRW` - Execute, read, and write permissions
+
+### Example
+
+```c
+#include <libmem/libmem.h>
+#include <stdio.h>
+
+int main()
+{
+    lm_segment_t segment;
+    lm_address_t addr = 0x12345678;  // Address to search for
+    
+    if (LM_FindSegment(addr, &segment)) {
+        printf("Found segment containing address 0x%lx:\n", addr);
+        printf("  Base:  0x%lx\n", segment.base);
+        printf("  End:   0x%lx\n", segment.end);
+        printf("  Size:  %zu bytes\n", segment.size);
+        printf("  Prot:  0x%x\n", segment.prot);
+        
+        // Check permissions
+        if (segment.prot & LM_PROT_R) printf("  - Readable\n");
+        if (segment.prot & LM_PROT_W) printf("  - Writable\n");
+        if (segment.prot & LM_PROT_X) printf("  - Executable\n");
+    } else {
+        printf("Address 0x%lx not found in any segment\n", addr);
+    }
+    
+    return 0;
+}
+```
+
+### Example: Find Segment of a Function
+
+```c
+#include <libmem/libmem.h>
+#include <stdio.h>
+
+void my_function()
+{
+    printf("Hello from my_function!\n");
+}
+
+int main()
+{
+    lm_segment_t segment;
+    lm_address_t func_addr = (lm_address_t)my_function;
+    
+    if (LM_FindSegment(func_addr, &segment)) {
+        printf("Function at 0x%lx is in segment:\n", func_addr);
+        printf("  Range: 0x%lx - 0x%lx\n", segment.base, segment.end);
+        printf("  Size:  %zu bytes\n", segment.size);
+        
+        // Verify it's executable
+        if (segment.prot & LM_PROT_X) {
+            printf("  Segment is executable (as expected)\n");
+        }
+    }
+    
+    return 0;
+}
+```
+
+### Example: Validate Memory Access
+
+```c
+#include <libmem/libmem.h>
+#include <stdio.h>
+
+lm_bool_t can_read_address(lm_address_t addr)
+{
+    lm_segment_t segment;
+    
+    if (LM_FindSegment(addr, &segment)) {
+        return (segment.prot & LM_PROT_R) ? LM_TRUE : LM_FALSE;
+    }
+    
+    return LM_FALSE;
+}
+
+lm_bool_t can_write_address(lm_address_t addr)
+{
+    lm_segment_t segment;
+    
+    if (LM_FindSegment(addr, &segment)) {
+        return (segment.prot & LM_PROT_W) ? LM_TRUE : LM_FALSE;
+    }
+    
+    return LM_FALSE;
+}
+
+int main()
+{
+    lm_address_t addr = 0x400000;
+    
+    printf("Checking address 0x%lx:\n", addr);
+    printf("  Can read:  %s\n", can_read_address(addr) ? "yes" : "no");
+    printf("  Can write: %s\n", can_write_address(addr) ? "yes" : "no");
+    
+    return 0;
+}
+```
+
+---
+
+## LM_FindSegmentEx
+
+Searches for a memory segment that a given address is within in a specified process and populates the `segment_out` parameter with the result.
+
+### Signature
+
+```c
+LM_API lm_bool_t LM_CALL
+LM_FindSegmentEx(const lm_process_t *process,
+                 lm_address_t        address,
+                 lm_segment_t       *segment_out);
+```
+
+### Parameters
+
+<ParamField path="process" type="const lm_process_t *" required>
+  A pointer to a structure containing information about the process whose memory segments will be searched.
+</ParamField>
+
+<ParamField path="address" type="lm_address_t" required>
+  The address to search for.
+</ParamField>
+
+<ParamField path="segment_out" type="lm_segment_t *" required>
+  A pointer to an `lm_segment_t` structure to populate with information about the segment that contains the specified address.
+</ParamField>
+
+### Return Value
+
+Returns `LM_TRUE` if the specified address is found within a segment, or `LM_FALSE` otherwise.
+
+### Example
+
+```c
+#include <libmem/libmem.h>
+#include <stdio.h>
+
+int main()
+{
+    lm_process_t process;
+    lm_module_t module;
+    lm_segment_t segment;
+    
+    // Find a process
+    if (!LM_FindProcess("target.exe", &process)) {
+        printf("Failed to find process\n");
+        return 1;
+    }
+    
+    // Find a module in the process
+    if (!LM_FindModuleEx(&process, "game.dll", &module)) {
+        printf("Failed to find module\n");
+        return 1;
+    }
+    
+    // Find the segment containing the module's base address
+    if (LM_FindSegmentEx(&process, module.base, &segment)) {
+        printf("Module '%s' base address 0x%lx is in segment:\n",
+               module.name, module.base);
+        printf("  Segment base: 0x%lx\n", segment.base);
+        printf("  Segment end:  0x%lx\n", segment.end);
+        printf("  Segment size: %zu bytes\n", segment.size);
+        printf("  Protection:   0x%x\n", segment.prot);
+    } else {
+        printf("Address not found in any segment\n");
+    }
+    
+    return 0;
+}
+```
+
+### Example: Check Remote Address Permissions
+
+```c
+#include <libmem/libmem.h>
+#include <stdio.h>
+
+lm_bool_t is_address_writable(const lm_process_t *process, lm_address_t addr)
+{
+    lm_segment_t segment;
+    
+    if (LM_FindSegmentEx(process, addr, &segment)) {
+        return (segment.prot & LM_PROT_W) ? LM_TRUE : LM_FALSE;
+    }
+    
+    return LM_FALSE;
+}
+
+int main()
+{
+    lm_process_t process;
+    lm_address_t target_addr = 0x10000000;
+    
+    if (LM_FindProcess("game.exe", &process)) {
+        if (is_address_writable(&process, target_addr)) {
+            printf("Address 0x%lx is writable in %s\n",
+                   target_addr, process.name);
+            // Safe to write to this address
+        } else {
+            printf("Address 0x%lx is not writable in %s\n",
+                   target_addr, process.name);
+        }
+    }
+    
+    return 0;
+}
+```
+
+### Example: Find Segment Before Memory Operation
+
+```c
+#include <libmem/libmem.h>
+#include <stdio.h>
+
+int main()
+{
+    lm_process_t process;
+    lm_segment_t segment;
+    lm_address_t addr = 0x400000;
+    lm_byte_t data[] = {0x90, 0x90, 0x90, 0x90};  // NOP instructions
+    
+    if (!LM_FindProcess("target.exe", &process)) {
+        printf("Failed to find process\n");
+        return 1;
+    }
+    
+    // Check if address exists and get its permissions
+    if (!LM_FindSegmentEx(&process, addr, &segment)) {
+        printf("Address 0x%lx not found in process memory\n", addr);
+        return 1;
+    }
+    
+    // Verify the segment is writable
+    if (!(segment.prot & LM_PROT_W)) {
+        printf("Segment is not writable, changing protection...\n");
+        
+        lm_prot_t old_prot;
+        if (!LM_ProtMemoryEx(&process, addr, sizeof(data),
+                             LM_PROT_XRW, &old_prot)) {
+            printf("Failed to change memory protection\n");
+            return 1;
+        }
+    }
+    
+    // Now safe to write
+    lm_size_t written = LM_WriteMemoryEx(&process, addr, data, sizeof(data));
+    printf("Wrote %zu bytes to 0x%lx\n", written, addr);
+    
+    return 0;
+}
+```
+
+## See Also
+
+- [LM_EnumSegments](/api/segment/enum-segments) - Enumerate all memory segments
+- [LM_ProtMemory](/api/memory/prot-memory) - Change memory protection flags
+- [LM_ReadMemory](/api/memory/read-memory) - Read memory from a segment
+- [LM_WriteMemory](/api/memory/write-memory) - Write memory to a segment

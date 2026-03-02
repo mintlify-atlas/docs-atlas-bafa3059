@@ -1,0 +1,413 @@
+---
+title: "Rust Bindings"
+description: "Using libmem in Rust projects with safe, idiomatic Rust APIs"
+---
+
+libmem provides Rust bindings with safe, idiomatic Rust APIs. Functions return `Option<T>` and `Result<T, E>` types for safe error handling, and all memory management is handled automatically.
+
+## Installation
+
+Add libmem to your `Cargo.toml`:
+
+```toml
+[dependencies]
+libmem = "5"
+```
+
+The default `fetch` feature will automatically download and link the appropriate libmem binary for your platform. No manual installation required!
+
+### Cargo Features
+
+<CodeGroup>
+```toml Default (Auto-fetch)
+[dependencies]
+libmem = "5"
+# Automatically downloads libmem binary
+```
+
+```toml Static Linking
+[dependencies]
+libmem = { version = "5", default-features = false, features = ["static"] }
+# Links against system-installed libmem
+```
+
+```toml Custom Path
+# Set environment variable to use custom libmem installation
+# LIBMEM_DIR=/path/to/libmem cargo build
+[dependencies]
+libmem = { version = "5", default-features = false }
+```
+</CodeGroup>
+
+**Available features:**
+- `fetch` (default): Automatically downloads libmem binaries
+- `static`: Links against statically installed libmem (requires system installation)
+
+## Importing
+
+```rust
+use libmem::*;
+```
+
+All libmem functions and types are available in the root module.
+
+## Basic Usage
+
+### Finding Processes and Modules
+
+```rust
+use libmem::*;
+
+fn main() -> Option<()> {
+    // Find a process by name
+    let game_process = find_process("game_linux64")?;
+    println!("Found process: PID {}", game_process.pid);
+
+    // Find a module in the process
+    let client_module = find_module_ex(&game_process, "libclient.so")?;
+    println!("Module base: 0x{:x}", client_module.base);
+    println!("Module size: {} bytes", client_module.size);
+
+    Some(())
+}
+```
+
+### Memory Scanning
+
+```rust
+use libmem::*;
+
+fn main() -> Option<()> {
+    let game_process = find_process("game_linux64")?;
+    let client_module = find_module_ex(&game_process, "libclient.so")?;
+
+    // Signature scan for a function
+    let fn_update_health = sig_scan_ex(
+        &game_process,
+        "55 48 89 E5 66 B8 ?? ?? 48 8B 5D FC",
+        client_module.base,
+        client_module.size,
+    )?;
+    println!("[*] Signature scan result for 'update_health' function: {}", fn_update_health);
+
+    Some(())
+}
+```
+
+### Reading and Writing Memory
+
+```rust
+use libmem::*;
+
+fn main() -> Option<()> {
+    let process = find_process("game.exe")?;
+    let game_mod = find_module_ex(&process, &process.name)?;
+
+    // Read memory
+    let mut buffer = vec![0u8; 4];
+    read_memory_ex(&process, game_mod.base + 0x1000, &mut buffer)?;
+
+    // Write memory
+    let data = vec![0x90u8; 4]; // NOP sled
+    write_memory_ex(&process, game_mod.base + 0x2000, &data)?;
+
+    Some(())
+}
+```
+
+## Complete Example: God Mode Hack
+
+```rust
+use libmem::*;
+
+fn godmode() -> Option<()> {
+    let game_process = find_process("game_linux64")?;
+    let client_module = find_module_ex(&game_process, "libclient.so")?;
+
+    // Find the update_health function with signature scanning
+    let fn_update_health = sig_scan_ex(
+        &game_process,
+        "55 48 89 E5 66 B8 ?? ?? 48 8B 5D FC",
+        client_module.base,
+        client_module.size,
+    )?;
+    println!(
+        "[*] Signature scan result for 'update_health' function: {}",
+        fn_update_health
+    );
+
+    // Assemble shellcode to set health to 1337
+    let shellcode = assemble_ex("mov rbx, 1337; mov [rdi], rbx; ret", Arch::X64, 0)?;
+    
+    // Patch the function
+    write_memory_ex(&game_process, fn_update_health + 8, &shellcode.as_slice())?;
+    println!("[*] Patched 'update_health' function to always set health to 1337!");
+
+    Some(())
+}
+
+fn main() {
+    godmode();
+}
+```
+
+## Pointer Scans (Deep Pointers)
+
+```rust
+use libmem::*;
+use std::time::Duration;
+use std::thread;
+
+fn main() -> Option<()> {
+    let process = find_process("game.exe")?;
+    let game_mod = find_module_ex(&process, &process.name)?;
+
+    // Resolve a Cheat Engine pointer scan
+    let health_pointer = deep_pointer_ex(
+        &process,
+        game_mod.base + 0xdeadbeef,
+        &[0xA0, 0x04, 0x10, 0xF0, 0x0]
+    )?;
+
+    // Set player health to 1337 forever
+    loop {
+        let health_bytes = 1337i32.to_le_bytes();
+        write_memory_ex(&process, health_pointer, &health_bytes)?;
+        thread::sleep(Duration::from_millis(200));
+    }
+}
+```
+
+## Assembly and Disassembly
+
+### Assembling Instructions
+
+```rust
+use libmem::*;
+
+fn main() -> Option<()> {
+    // Assemble for x64 architecture
+    let shellcode = assemble_ex(
+        "mov rax, 0x1337; push rax; pop rbx; ret",
+        Arch::X64,
+        0  // runtime address (0 for position-independent code)
+    )?;
+
+    println!("Assembled {} bytes", shellcode.len());
+    println!("Bytes: {:02x?}", shellcode);
+
+    Some(())
+}
+```
+
+### Disassembling Instructions
+
+```rust
+use libmem::*;
+
+fn main() -> Option<()> {
+    let process = find_process("game")?;
+    let main_module = find_module_ex(&process, "game")?;
+
+    // Disassemble instructions from module base
+    let instructions = disassemble_ex(
+        main_module.base,
+        Arch::X64,
+        0,    // max_size (0 = unlimited)
+        10,   // instruction_count (disassemble 10 instructions)
+        main_module.base  // runtime address
+    )?;
+
+    for inst in instructions {
+        println!("0x{:x}: {} {}", inst.address, inst.mnemonic, inst.op_str);
+    }
+
+    Some(())
+}
+```
+
+## Function Hooking
+
+```rust
+use libmem::*;
+
+// Hook callback must match the original function signature
+type TakeDamageFn = extern "C" fn(i32) -> ();
+
+extern "C" fn hk_take_damage(amount: i32) {
+    println!("[HOOK] take_damage called with amount: {}", amount);
+    println!("[HOOK] Ignoring damage!");
+}
+
+fn main() -> Option<()> {
+    let process = get_process()?;
+    let game_mod = find_module("game.dll")?;
+
+    let fn_take_damage = find_symbol_address(&game_mod, "take_damage")?;
+
+    // Hook the function
+    let trampoline = hook_code(
+        fn_take_damage,
+        hk_take_damage as usize
+    )?;
+
+    println!("[*] Hooked take_damage at 0x{:x}", fn_take_damage);
+    println!("[*] Trampoline at 0x{:x}", trampoline.address);
+
+    // To call the original function:
+    // let orig_fn: TakeDamageFn = unsafe { std::mem::transmute(trampoline.address) };
+    // orig_fn(100);
+
+    Some(())
+}
+```
+
+## Key Functions
+
+### Process Management
+
+| Function | Return Type | Description |
+|----------|-------------|-------------|
+| `find_process(name)` | `Option<Process>` | Find process by name |
+| `get_process()` | `Option<Process>` | Get current process |
+| `is_process_alive(&process)` | `bool` | Check if process is alive |
+| `enum_processes()` | `Option<Vec<Process>>` | List all processes |
+
+### Module Management
+
+| Function | Return Type | Description |
+|----------|-------------|-------------|
+| `find_module(name)` | `Option<Module>` | Find module in current process |
+| `find_module_ex(&proc, name)` | `Option<Module>` | Find module in target process |
+| `enum_modules()` | `Option<Vec<Module>>` | List modules in current process |
+| `enum_modules_ex(&proc)` | `Option<Vec<Module>>` | List modules in target process |
+| `load_module(path)` | `Option<Module>` | Load a module/library |
+
+### Memory Operations
+
+| Function | Return Type | Description |
+|----------|-------------|-------------|
+| `read_memory(addr, buf)` | `Option<usize>` | Read memory in current process |
+| `read_memory_ex(&proc, addr, buf)` | `Option<usize>` | Read memory in target process |
+| `write_memory(addr, data)` | `Option<usize>` | Write memory in current process |
+| `write_memory_ex(&proc, addr, data)` | `Option<usize>` | Write memory in target process |
+| `alloc_memory(size, prot)` | `Option<usize>` | Allocate memory |
+| `free_memory(addr, size)` | `bool` | Free allocated memory |
+| `prot_memory(addr, size, prot)` | `Option<Prot>` | Change memory protection |
+
+### Scanning
+
+| Function | Return Type | Description |
+|----------|-------------|-------------|
+| `sig_scan(sig, addr, size)` | `Option<usize>` | Signature scan in current process |
+| `sig_scan_ex(&proc, sig, addr, size)` | `Option<usize>` | Signature scan in target process |
+| `pattern_scan(pattern, mask, addr, size)` | `Option<usize>` | Pattern scan with mask |
+| `data_scan(data, addr, size)` | `Option<usize>` | Scan for exact bytes |
+| `deep_pointer(base, offsets)` | `usize` | Resolve pointer chain |
+| `deep_pointer_ex(&proc, base, offsets)` | `Option<usize>` | Resolve pointer chain in target process |
+
+### Assembly/Disassembly
+
+| Function | Return Type | Description |
+|----------|-------------|-------------|
+| `assemble(code)` | `Option<Inst>` | Assemble single instruction |
+| `assemble_ex(code, arch, addr)` | `Option<Vec<u8>>` | Assemble multiple instructions |
+| `disassemble(addr)` | `Option<Inst>` | Disassemble single instruction |
+| `disassemble_ex(addr, arch, max_size, count, runtime_addr)` | `Option<Vec<Inst>>` | Disassemble multiple instructions |
+
+### Hooking
+
+| Function | Return Type | Description |
+|----------|-------------|-------------|
+| `hook_code(from, to)` | `Option<Trampoline>` | Hook a function |
+| `unhook_code(from, trampoline)` | `bool` | Remove a hook |
+
+## Type Reference
+
+```rust
+pub struct Process {
+    pub pid: u32,
+    pub ppid: u32,
+    pub bits: usize,
+    pub start_time: u64,
+    pub path: String,
+    pub name: String,
+}
+
+pub struct Module {
+    pub base: usize,
+    pub end: usize,
+    pub size: usize,
+    pub path: String,
+    pub name: String,
+}
+
+pub struct Inst {
+    pub address: usize,
+    pub bytes: Vec<u8>,
+    pub mnemonic: String,
+    pub op_str: String,
+}
+
+pub struct Trampoline {
+    pub address: usize,
+    pub size: usize,
+}
+
+pub enum Arch {
+    X86,
+    X64,
+    ARMV7,
+    ARMV8,
+    AARCH64,
+    // ... (see documentation for full list)
+}
+
+bitflags! {
+    pub struct Prot: u32 {
+        const R = 1 << 0;   // Read
+        const W = 1 << 1;   // Write
+        const X = 1 << 2;   // Execute
+        const XR = Self::X.bits() | Self::R.bits();
+        const XW = Self::X.bits() | Self::W.bits();
+        const RW = Self::R.bits() | Self::W.bits();
+        const XRW = Self::X.bits() | Self::R.bits() | Self::W.bits();
+    }
+}
+```
+
+## Error Handling
+
+Rust bindings use `Option<T>` for functions that may fail:
+
+```rust
+use libmem::*;
+
+fn safe_example() {
+    // Using pattern matching
+    match find_process("game.exe") {
+        Some(process) => println!("Found process: PID {}", process.pid),
+        None => eprintln!("Process not found"),
+    }
+
+    // Using if let
+    if let Some(module) = find_module("game.dll") {
+        println!("Module base: 0x{:x}", module.base);
+    }
+
+    // Using ? operator (early return)
+    let process = find_process("game.exe")?;
+    let module = find_module_ex(&process, "game.dll")?;
+    
+    // Chain operations
+    let result = find_process("game.exe")
+        .and_then(|proc| find_module_ex(&proc, "game.dll"))
+        .and_then(|module| sig_scan_ex(&proc, "DE AD BE EF", module.base, module.size));
+}
+```
+
+## See Also
+
+- [C/C++ Bindings](/bindings/c-cpp) - C and C++ language bindings
+- [Python Bindings](/bindings/python) - Python language bindings
+- [API Reference](/api-reference/process) - Complete API documentation

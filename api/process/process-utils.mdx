@@ -1,0 +1,305 @@
+---
+title: 'Process Utilities'
+description: 'Utility functions for process management'
+---
+
+## Overview
+
+This page documents utility functions for working with processes, including checking if a process is alive, getting architecture information, and managing command line arguments.
+
+---
+
+## LM_IsProcessAlive
+
+Checks if a given process is alive based on its PID and start time.
+
+### Function Signature
+
+```c
+LM_API lm_bool_t LM_CALL
+LM_IsProcessAlive(const lm_process_t *process);
+```
+
+### Parameters
+
+<ParamField path="process" type="const lm_process_t *" required>
+  The process that will be checked. Both the PID and start time are used to verify the process is the same instance.
+</ParamField>
+
+### Return Value
+
+<ResponseField name="return" type="lm_bool_t">
+  Returns `LM_TRUE` if the process specified by the input `lm_process_t` is alive, or `LM_FALSE` otherwise.
+</ResponseField>
+
+### Example
+
+```c
+lm_process_t target;
+
+if (LM_FindProcess("game.exe", &target)) {
+    printf("Found process\n");
+    
+    // Do some work...
+    
+    // Check if still alive
+    if (LM_IsProcessAlive(&target)) {
+        printf("Process is still running\n");
+    } else {
+        printf("Process has terminated\n");
+    }
+}
+```
+
+### Notes
+
+- This function checks both PID and start time to avoid false positives from PID reuse
+- More reliable than just checking if a PID exists
+- Useful for monitoring target processes in injectors or debuggers
+
+---
+
+## LM_GetBits
+
+Returns the size of a pointer in bits, which corresponds to the current process's bits (32 bits or 64 bits).
+
+### Function Signature
+
+```c
+LM_API lm_size_t LM_CALL
+LM_GetBits();
+```
+
+### Parameters
+
+This function takes no parameters.
+
+### Return Value
+
+<ResponseField name="return" type="lm_size_t">
+  Returns the size of a pointer in bits. Typically `32` or `64`.
+</ResponseField>
+
+### Example
+
+```c
+lm_size_t bits = LM_GetBits();
+printf("Current process is %zu-bit\n", bits);
+
+if (bits == 64) {
+    printf("Running in 64-bit mode\n");
+} else {
+    printf("Running in 32-bit mode\n");
+}
+```
+
+### Notes
+
+- Returns the architecture of the **current process**, not the system
+- Useful for determining pointer sizes and offsets
+- A 32-bit process on a 64-bit system will return `32`
+
+---
+
+## LM_GetSystemBits
+
+Returns the system architecture bits (32 bits or 64 bits).
+
+### Function Signature
+
+```c
+LM_API lm_size_t LM_CALL
+LM_GetSystemBits();
+```
+
+### Parameters
+
+This function takes no parameters.
+
+### Return Value
+
+<ResponseField name="return" type="lm_size_t">
+  Returns the system bits. Typically `32` or `64`.
+</ResponseField>
+
+### Example
+
+```c
+lm_size_t system_bits = LM_GetSystemBits();
+lm_size_t process_bits = LM_GetBits();
+
+printf("System: %zu-bit\n", system_bits);
+printf("Process: %zu-bit\n", process_bits);
+
+if (system_bits == 64 && process_bits == 32) {
+    printf("Running 32-bit process on 64-bit system (WoW64)\n");
+}
+```
+
+### Notes
+
+- Returns the architecture of the **operating system**, not the current process
+- On Windows, useful for detecting WoW64 (32-bit process on 64-bit Windows)
+- The system bits are always >= the process bits
+
+---
+
+## LM_GetCommandLine
+
+Retrieves the command line arguments of a process.
+
+### Function Signature
+
+```c
+LM_API lm_char_t ** LM_CALL
+LM_GetCommandLine(lm_process_t *process);
+```
+
+### Parameters
+
+<ParamField path="process" type="lm_process_t *" required>
+  The process to retrieve the command line from.
+</ParamField>
+
+### Return Value
+
+<ResponseField name="return" type="lm_char_t **">
+  Returns an allocated NULL-terminated array of strings containing the command line arguments, or `NULL` if it fails. The returned array must be freed with `LM_FreeCommandLine`.
+</ResponseField>
+
+### Example
+
+```c
+lm_process_t target;
+
+if (LM_FindProcess("game.exe", &target)) {
+    lm_char_t **cmdline = LM_GetCommandLine(&target);
+    
+    if (cmdline) {
+        printf("Command line arguments:\n");
+        for (int i = 0; cmdline[i] != NULL; i++) {
+            printf("  [%d]: %s\n", i, cmdline[i]);
+        }
+        
+        LM_FreeCommandLine(cmdline);
+    } else {
+        printf("Failed to get command line\n");
+    }
+}
+```
+
+### Notes
+
+- **WARNING**: On Windows, this function requires reading process memory
+- Always free the returned buffer with `LM_FreeCommandLine`
+- May require elevated privileges on some systems
+- Returns `NULL` on failure
+
+---
+
+## LM_FreeCommandLine
+
+Frees a command line buffer obtained from `LM_GetCommandLine`.
+
+### Function Signature
+
+```c
+LM_API lm_void_t LM_CALL
+LM_FreeCommandLine(lm_char_t **cmdline);
+```
+
+### Parameters
+
+<ParamField path="cmdline" type="lm_char_t **" required>
+  The allocated command line buffer to free.
+</ParamField>
+
+### Return Value
+
+This function does not return a value.
+
+### Example
+
+```c
+lm_char_t **cmdline = LM_GetCommandLine(&process);
+if (cmdline) {
+    // Use the command line...
+    
+    // Free when done
+    LM_FreeCommandLine(cmdline);
+}
+```
+
+### Notes
+
+- Always call this function to free memory allocated by `LM_GetCommandLine`
+- Safe to call with `NULL` pointer (no-op)
+- Failure to free will cause memory leaks
+
+---
+
+## Complete Example
+
+Here's a complete example demonstrating all utility functions:
+
+```c
+#include <libmem/libmem.h>
+#include <stdio.h>
+
+int main()
+{
+    // Get system and process architecture info
+    lm_size_t system_bits = LM_GetSystemBits();
+    lm_size_t process_bits = LM_GetBits();
+    
+    printf("System: %zu-bit\n", system_bits);
+    printf("Current process: %zu-bit\n", process_bits);
+    
+    // Find a target process
+    lm_process_t target;
+    if (!LM_FindProcess("game.exe", &target)) {
+        printf("Process not found\n");
+        return 1;
+    }
+    
+    printf("\nFound process: %s\n", target.name);
+    printf("  PID: %d\n", target.pid);
+    printf("  Bits: %zu\n", target.bits);
+    
+    // Check if architecture matches
+    if (target.bits != process_bits) {
+        printf("  WARNING: Architecture mismatch!\n");
+    }
+    
+    // Get command line arguments
+    lm_char_t **cmdline = LM_GetCommandLine(&target);
+    if (cmdline) {
+        printf("\nCommand line arguments:\n");
+        for (int i = 0; cmdline[i] != NULL; i++) {
+            printf("  [%d]: %s\n", i, cmdline[i]);
+        }
+        LM_FreeCommandLine(cmdline);
+    }
+    
+    // Monitor process
+    printf("\nMonitoring process...\n");
+    int checks = 0;
+    while (checks < 10 && LM_IsProcessAlive(&target)) {
+        printf("Process still alive (check %d/10)\n", ++checks);
+        sleep(1);
+    }
+    
+    if (!LM_IsProcessAlive(&target)) {
+        printf("Process has terminated\n");
+    }
+    
+    return 0;
+}
+```
+
+## See Also
+
+- [LM_GetProcess](/api/process/get-process) - Get information about the current process
+- [LM_GetProcessEx](/api/process/get-process#lm-getprocessex) - Get information about a process by PID
+- [LM_FindProcess](/api/process/find-process) - Find a process by name
+- [LM_EnumProcesses](/api/process/enum-processes) - Enumerate all processes

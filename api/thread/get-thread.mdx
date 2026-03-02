@@ -1,0 +1,198 @@
+---
+title: 'Get Thread'
+description: 'Retrieve information about threads and their processes'
+---
+
+## LM_GetThread
+
+Retrieves information about the thread it's running from.
+
+### Function Signature
+
+```c
+LM_API lm_bool_t LM_CALL
+LM_GetThread(lm_thread_t *thread_out);
+```
+
+### Parameters
+
+<ParamField path="thread_out" type="lm_thread_t *" required>
+  A pointer to the `lm_thread_t` structure that will be populated with information about the current thread, specifically the thread ID (`tid`) and the process ID (`owner_pid`).
+</ParamField>
+
+### Return Value
+
+<ResponseField name="return" type="lm_bool_t">
+  Returns `LM_TRUE` if the thread information was successfully retrieved and stored in the provided `lm_thread_t` structure. Otherwise, returns `LM_FALSE`.
+</ResponseField>
+
+### Example
+
+```c
+#include <libmem/libmem.h>
+#include <stdio.h>
+
+int main()
+{
+    lm_thread_t thread;
+    
+    if (LM_GetThread(&thread)) {
+        printf("Current thread TID: %u\n", thread.tid);
+        printf("Owner process PID: %u\n", thread.owner_pid);
+    } else {
+        printf("Failed to get current thread information\n");
+    }
+    
+    return 0;
+}
+```
+
+---
+
+## LM_GetThreadEx
+
+Retrieves information about a thread in a process.
+
+### Function Signature
+
+```c
+LM_API lm_bool_t LM_CALL
+LM_GetThreadEx(const lm_process_t *process,
+               lm_thread_t        *thread_out);
+```
+
+### Parameters
+
+<ParamField path="process" type="const lm_process_t *" required>
+  The process that the thread will be retrieved from.
+</ParamField>
+
+<ParamField path="thread_out" type="lm_thread_t *" required>
+  A pointer to the `lm_thread_t` variable where the function will store the thread information retrieved from the process.
+</ParamField>
+
+### Return Value
+
+<ResponseField name="return" type="lm_bool_t">
+  Returns `LM_TRUE` if the thread was retrieved successfully, or `LM_FALSE` if it fails.
+</ResponseField>
+
+### Example
+
+```c
+#include <libmem/libmem.h>
+#include <stdio.h>
+
+int main()
+{
+    lm_process_t process;
+    lm_thread_t thread;
+    
+    // Find target process
+    if (!LM_FindProcess("target.exe", &process)) {
+        printf("Failed to find process\n");
+        return 1;
+    }
+    
+    // Get a thread from the target process
+    if (LM_GetThreadEx(&process, &thread)) {
+        printf("Retrieved thread from process %u:\n", process.pid);
+        printf("  TID: %u\n", thread.tid);
+        printf("  Owner PID: %u\n", thread.owner_pid);
+    } else {
+        printf("Failed to get thread from process\n");
+    }
+    
+    return 0;
+}
+```
+
+---
+
+## LM_GetThreadProcess
+
+Retrieves the process that owns a given thread.
+
+### Function Signature
+
+```c
+LM_API lm_bool_t LM_CALL
+LM_GetThreadProcess(const lm_thread_t *thread,
+                    lm_process_t      *process_out);
+```
+
+### Parameters
+
+<ParamField path="thread" type="const lm_thread_t *" required>
+  The thread whose process will be retrieved.
+</ParamField>
+
+<ParamField path="process_out" type="lm_process_t *" required>
+  A pointer to the `lm_process_t` structure where the function will store the process information related to the given thread.
+</ParamField>
+
+### Return Value
+
+<ResponseField name="return" type="lm_bool_t">
+  Returns `LM_TRUE` if the operation was successful or `LM_FALSE` otherwise.
+</ResponseField>
+
+### Example
+
+```c
+#include <libmem/libmem.h>
+#include <stdio.h>
+
+int main()
+{
+    lm_thread_t thread;
+    lm_process_t process;
+    
+    // Get current thread
+    if (!LM_GetThread(&thread)) {
+        printf("Failed to get current thread\n");
+        return 1;
+    }
+    
+    // Get the process that owns this thread
+    if (LM_GetThreadProcess(&thread, &process)) {
+        printf("Thread %u belongs to process:\n", thread.tid);
+        printf("  PID: %u\n", process.pid);
+        printf("  Name: %s\n", process.name);
+        printf("  Path: %s\n", process.path);
+        printf("  Architecture: %u-bit\n", process.bits);
+    } else {
+        printf("Failed to get thread process\n");
+    }
+    
+    return 0;
+}
+```
+
+---
+
+## Thread Structure
+
+The `lm_thread_t` structure contains information about a thread:
+
+```c
+typedef struct lm_thread_t {
+    lm_tid_t tid;       // Thread ID
+    lm_pid_t owner_pid; // Process ID that owns this thread
+} lm_thread_t;
+```
+
+### Fields
+
+<ResponseField name="tid" type="lm_tid_t">
+  The thread identifier (TID). This is a unique identifier for the thread within the system.
+</ResponseField>
+
+<ResponseField name="owner_pid" type="lm_pid_t">
+  The process identifier (PID) of the process that owns this thread.
+</ResponseField>
+
+### Related Types
+
+- `lm_tid_t` - Thread identifier type (typedef of `uint32_t`)
+- `lm_pid_t` - Process identifier type (typedef of `uint32_t`)

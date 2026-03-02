@@ -1,0 +1,296 @@
+---
+title: Memory Protection
+description: Understanding memory protection flags and how to work with them in libmem
+---
+
+Memory protection flags control the access permissions for memory regions. libmem provides a comprehensive system for querying and modifying these permissions through the `lm_prot_t` type.
+
+## Protection Flags
+
+The `lm_prot_t` type is a 32-bit bitmask that represents memory protection settings.
+
+### Bitmask Structure
+
+```c
+/*
+ * lm_prot_t bit mask:
+ *
+ * 31 30 29 ... 2 1 0
+ * 0  0  0      X W R
+ *              │ │ └─ Read permission (bit 0)
+ *              │ └─── Write permission (bit 1)  
+ *              └───── Execute permission (bit 2)
+ */
+typedef uint32_t lm_prot_t;
+```
+
+### Basic Flags
+
+```c
+enum {
+    LM_PROT_NONE = 0,           // No permissions
+    
+    LM_PROT_R = (1 << 0),       // Read permission
+    LM_PROT_W = (1 << 1),       // Write permission
+    LM_PROT_X = (1 << 2),       // Execute permission
+    
+    LM_PROT_XR = LM_PROT_X | LM_PROT_R,       // Execute + Read
+    LM_PROT_XW = LM_PROT_X | LM_PROT_W,       // Execute + Write
+    LM_PROT_RW = LM_PROT_R | LM_PROT_W,       // Read + Write
+    LM_PROT_XRW = LM_PROT_X | LM_PROT_R | LM_PROT_W  // All permissions
+};
+```
+
+### Flag Reference
+
+| Flag | Value | Binary | Description |
+|------|-------|--------|-------------|
+| `LM_PROT_NONE` | 0 | `000` | No access allowed |
+| `LM_PROT_R` | 1 | `001` | Read-only |
+| `LM_PROT_W` | 2 | `010` | Write-only (rare) |
+| `LM_PROT_X` | 4 | `100` | Execute-only (rare) |
+| `LM_PROT_RW` | 3 | `011` | Read and Write |
+| `LM_PROT_XR` | 5 | `101` | Execute and Read |
+| `LM_PROT_XW` | 6 | `110` | Execute and Write |
+| `LM_PROT_XRW` | 7 | `111` | Full access (Read, Write, Execute) |
+
+<Info>
+The most common protection flags are `LM_PROT_R` (read-only data), `LM_PROT_RW` (writable data), and `LM_PROT_XR` (executable code).
+</Info>
+
+## Memory Segments with Protection
+
+Memory segments store protection information:
+
+```c
+typedef struct lm_segment_t {
+    lm_address_t base;  // Starting address
+    lm_address_t end;   // Ending address
+    lm_size_t    size;  // Size in bytes
+    lm_prot_t    prot;  // Protection flags
+} lm_segment_t;
+```
+
+### Example: Finding Executable Memory
+
+```c
+lm_bool_t find_executable_callback(lm_segment_t *segment, lm_void_t *arg)
+{
+    // Check if segment has execute permission
+    if (segment->prot & LM_PROT_X) {
+        printf("Executable segment: %p - %p (size: 0x%zx)\n",
+               (void*)segment->base, (void*)segment->end, segment->size);
+    }
+    return LM_TRUE;
+}
+
+int main()
+{
+    LM_EnumSegments(find_executable_callback, NULL);
+    return 0;
+}
+```
+
+## Modifying Memory Protection
+
+You can change memory protection flags using `LM_ProtMemory()` and `LM_ProtMemoryEx()`.
+
+### Internal Protection Change
+
+```c
+lm_address_t target_address = 0x12345000;
+lm_size_t size = 4096;  // One page
+lm_prot_t old_prot;
+
+// Change protection to read-write-execute
+if (LM_ProtMemory(target_address, size, LM_PROT_XRW, &old_prot)) {
+    printf("Protection changed successfully\n");
+    printf("Old protection: 0x%x\n", old_prot);
+    
+    // Modify memory...
+    
+    // Restore old protection
+    LM_ProtMemory(target_address, size, old_prot, NULL);
+}
+```
+
+### External Protection Change
+
+```c
+lm_process_t target_process;
+LM_FindProcess("game.exe", &target_process);
+
+lm_address_t target_address = 0x12345000;
+lm_prot_t old_prot;
+
+if (LM_ProtMemoryEx(&target_process, target_address, 4096, LM_PROT_RW, &old_prot)) {
+    printf("Changed protection in remote process\n");
+}
+```
+
+<Note>
+Memory protection operations are page-aligned. The system will align your address and size to page boundaries automatically.
+</Note>
+
+## Allocating Memory with Protection
+
+When allocating memory, you specify the initial protection flags.
+
+### Allocate Executable Memory
+
+```c
+// Allocate memory with read-write-execute permissions
+lm_address_t shellcode_addr = LM_AllocMemory(1024, LM_PROT_XRW);
+
+if (shellcode_addr != LM_ADDRESS_BAD) {
+    printf("Allocated executable memory at: %p\n", (void*)shellcode_addr);
+    
+    // Write shellcode...
+    lm_byte_t shellcode[] = { 0x90, 0x90, 0xC3 };  // nop, nop, ret
+    LM_WriteMemory(shellcode_addr, shellcode, sizeof(shellcode));
+    
+    // Free when done
+    LM_FreeMemory(shellcode_addr, 1024);
+}
+```
+
+### Allocate Read-Only Memory
+
+```c
+lm_address_t data_addr = LM_AllocMemory(4096, LM_PROT_R);
+```
+
+### Allocate in External Process
+
+```c
+lm_process_t target;
+LM_FindProcess("game.exe", &target);
+
+lm_address_t remote_mem = LM_AllocMemoryEx(&target, 8192, LM_PROT_RW);
+
+if (remote_mem != LM_ADDRESS_BAD) {
+    printf("Allocated memory in remote process: %p\n", (void*)remote_mem);
+}
+```
+
+## Checking Protection Flags
+
+You can use bitwise operations to check protection flags.
+
+### Example: Checking Individual Permissions
+
+```c
+void print_protection(lm_prot_t prot)
+{
+    printf("Protection: ");
+    
+    if (prot & LM_PROT_R) printf("R");
+    if (prot & LM_PROT_W) printf("W");
+    if (prot & LM_PROT_X) printf("X");
+    
+    if (prot == LM_PROT_NONE) printf("NONE");
+    
+    printf("\n");
+}
+
+int main()
+{
+    lm_segment_t segment;
+    
+    if (LM_FindSegment(0x400000, &segment)) {
+        print_protection(segment.prot);
+    }
+    
+    return 0;
+}
+```
+
+### Helper Macro
+
+libmem provides a macro to validate protection flags:
+
+```c
+#define LM_CHECK_PROT(prot) ((prot & LM_PROT_XRW) == prot)
+```
+
+This macro ensures the protection value only contains valid flag bits.
+
+## Common Patterns
+
+### Write to Protected Memory
+
+```c
+void write_protected(lm_address_t address, const lm_byte_t *data, lm_size_t size)
+{
+    lm_prot_t old_prot;
+    
+    // Make memory writable
+    LM_ProtMemory(address, size, LM_PROT_RW, &old_prot);
+    
+    // Write data
+    LM_WriteMemory(address, data, size);
+    
+    // Restore original protection
+    LM_ProtMemory(address, size, old_prot, NULL);
+}
+```
+
+### Find Writable Segments
+
+```c
+lm_bool_t find_writable_callback(lm_segment_t *segment, lm_void_t *arg)
+{
+    if (segment->prot & LM_PROT_W) {
+        printf("Writable: %p - %p\n", (void*)segment->base, (void*)segment->end);
+    }
+    return LM_TRUE;
+}
+
+LM_EnumSegments(find_writable_callback, NULL);
+```
+
+### Find RWX Segments (Potential Security Issue)
+
+```c
+lm_bool_t find_rwx_callback(lm_segment_t *segment, lm_void_t *arg)
+{
+    // Check if segment has all three permissions
+    if ((segment->prot & LM_PROT_XRW) == LM_PROT_XRW) {
+        printf("Warning: RWX segment at %p\n", (void*)segment->base);
+    }
+    return LM_TRUE;
+}
+
+LM_EnumSegments(find_rwx_callback, NULL);
+```
+
+<Info>
+Segments with read-write-execute (RWX) permissions are often flagged by security software as they can be used to inject and execute arbitrary code.
+</Info>
+
+## Platform Differences
+
+### Windows
+On Windows, memory protection is managed through VirtualProtect/VirtualProtectEx and maps to:
+- `LM_PROT_R` → `PAGE_READONLY`
+- `LM_PROT_RW` → `PAGE_READWRITE`
+- `LM_PROT_XR` → `PAGE_EXECUTE_READ`
+- `LM_PROT_XRW` → `PAGE_EXECUTE_READWRITE`
+
+### Linux/Unix
+On Linux/Unix systems, protection is managed through mprotect and maps to:
+- `LM_PROT_R` → `PROT_READ`
+- `LM_PROT_W` → `PROT_WRITE`
+- `LM_PROT_X` → `PROT_EXEC`
+
+<Note>
+libmem abstracts these platform differences, providing a unified API across all supported operating systems.
+</Note>
+
+## Best Practices
+
+1. **Always restore protection**: After modifying memory protection, restore it to prevent security issues
+2. **Use minimal permissions**: Only grant the permissions needed for your operation
+3. **Check return values**: Memory protection operations can fail; always verify success
+4. **Avoid RWX when possible**: Modern systems discourage executable writable memory
+5. **Understand page alignment**: Protection changes affect entire memory pages, not individual bytes

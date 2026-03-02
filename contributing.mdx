@@ -1,0 +1,135 @@
+---
+title: Contributing
+description: Learn how to contribute to libmem through bug reports, enhancements, and code contributions
+---
+
+We welcome contributions to libmem! Whether you're reporting bugs, suggesting enhancements, or submitting code changes, your help is appreciated.
+
+## Reporting Issues
+
+You can contribute by reporting bugs, suggesting enhancements, and improving documentation:
+
+1. Go to the [issues page](https://github.com/rdbo/libmem/issues/new)
+2. Give a descriptive title using this format: `[Bug]: Title`
+3. Add a detailed description explaining the issue (e.g., "The button on the website has a bright color which makes it hard to see the text")
+4. Include screenshots if available
+
+## Submitting Pull Requests
+
+<Steps>
+  <Step title="Fork the repository">
+    [Fork](https://github.com/rdbo/libmem/fork) the libmem GitHub repository to your account.
+  </Step>
+  
+  <Step title="Clone your fork">
+    Clone the forked repository to your local machine:
+    
+    ```bash
+    git clone https://github.com/<your-username>/libmem.git
+    ```
+  </Step>
+  
+  <Step title="Navigate to the project">
+    ```bash
+    cd libmem
+    ```
+  </Step>
+  
+  <Step title="Follow the coding style">
+    Follow libmem's coding style as much as you can, especially when aligning code elements.
+  </Step>
+  
+  <Step title="Make your changes">
+    Stage your changes and create a commit:
+    
+    ```bash
+    git add .
+    git commit -m "<your_commit_message>"
+    ```
+  </Step>
+  
+  <Step title="Create a branch and push">
+    Create a new branch and push your changes:
+    
+    ```bash
+    git checkout -b your-branch-name
+    git push origin your-branch-name
+    ```
+  </Step>
+  
+  <Step title="Submit the pull request">
+    Create a new [pull request](https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/creating-a-pull-request) with a description of what the PR does and how it accomplishes it.
+  </Step>
+</Steps>
+
+## Legal Requirements
+
+<Warning>
+  Every commit submitted through a pull request must be under the same license as libmem (GNU AGPLv3.0). When creating new source code files, you must include the license header at the top of the file.
+</Warning>
+
+### License Template
+
+For new source code files, include this license header commented using the appropriate syntax for your programming language:
+
+```
+ ----------------------------------
+|         libmem - by rdbo         |
+|      Memory Hacking Library      |
+ ----------------------------------
+
+Copyright (C) <year>    <author>
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License version 3
+as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+```
+
+### C/C++ Example
+
+```c
+/*
+ *  ----------------------------------
+ * |         libmem - by rdbo         |
+ * |      Memory Hacking Library      |
+ *  ----------------------------------
+ */
+
+/*
+ * Copyright (C) <year>    <author>
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License version 3
+ * as published by the Free Software Foundation.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ * 
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+```
+
+## Questions?
+
+<AccordionGroup>
+  <Accordion title="What coding style should I follow?">
+    Follow libmem's existing coding style, paying special attention to code alignment and formatting conventions used throughout the project.
+  </Accordion>
+  
+  <Accordion title="What license applies to my contributions?">
+    All contributions must be submitted under the GNU AGPLv3.0 license, the same license used by libmem.
+  </Accordion>
+  
+  <Accordion title="Do I need to add a license header to every file?">
+    Yes, when creating new source code files, you must include the license header at the top of the file, commented appropriately for the programming language you're using.
+  </Accordion>
+</AccordionGroup>

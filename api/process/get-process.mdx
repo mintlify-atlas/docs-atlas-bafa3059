@@ -1,0 +1,170 @@
+---
+title: 'LM_GetProcess / LM_GetProcessEx'
+description: 'Get information about a process'
+---
+
+## LM_GetProcess
+
+Retrieves information about the current process.
+
+### Function Signature
+
+```c
+LM_API lm_bool_t LM_CALL
+LM_GetProcess(lm_process_t *process_out);
+```
+
+### Parameters
+
+<ParamField path="process_out" type="lm_process_t *" required>
+  A pointer to the `lm_process_t` structure that will be populated with information about the current process, including PID, parent PID, path, name, start time, and architecture bits.
+</ParamField>
+
+### Return Value
+
+<ResponseField name="return" type="lm_bool_t">
+  Returns `LM_TRUE` if the process information was successfully retrieved, or `LM_FALSE` if there was an error.
+</ResponseField>
+
+### Example
+
+```c
+#include <libmem/libmem.h>
+#include <stdio.h>
+
+int main()
+{
+    lm_process_t process;
+    
+    if (LM_GetProcess(&process)) {
+        printf("Current Process Information:\n");
+        printf("  Name: %s\n", process.name);
+        printf("  Path: %s\n", process.path);
+        printf("  PID: %d\n", process.pid);
+        printf("  Parent PID: %d\n", process.ppid);
+        printf("  Bits: %zu\n", process.bits);
+        printf("  Start Time: %llu ms\n", process.start_time);
+    } else {
+        printf("Failed to get current process\n");
+    }
+    
+    return 0;
+}
+```
+
+---
+
+## LM_GetProcessEx
+
+Retrieves information about a specified process identified by its process ID.
+
+### Function Signature
+
+```c
+LM_API lm_bool_t LM_CALL
+LM_GetProcessEx(lm_pid_t      pid,
+                lm_process_t *process_out);
+```
+
+### Parameters
+
+<ParamField path="pid" type="lm_pid_t" required>
+  The process ID of the process for which you want to retrieve information.
+</ParamField>
+
+<ParamField path="process_out" type="lm_process_t *" required>
+  A pointer to the `lm_process_t` structure that will be populated with information about the specified process.
+</ParamField>
+
+### Return Value
+
+<ResponseField name="return" type="lm_bool_t">
+  Returns `LM_TRUE` if the process information was successfully retrieved, or `LM_FALSE` if there was an issue during the retrieval process (e.g., invalid PID, insufficient permissions).
+</ResponseField>
+
+### Example
+
+```c
+#include <libmem/libmem.h>
+#include <stdio.h>
+
+int main()
+{
+    lm_pid_t target_pid = 1234;
+    lm_process_t process;
+    
+    if (LM_GetProcessEx(target_pid, &process)) {
+        printf("Process Information for PID %d:\n", target_pid);
+        printf("  Name: %s\n", process.name);
+        printf("  Path: %s\n", process.path);
+        printf("  Parent PID: %d\n", process.ppid);
+        printf("  Bits: %zu\n", process.bits);
+        printf("  Architecture: %u\n", process.arch);
+    } else {
+        printf("Failed to get process with PID %d\n", target_pid);
+    }
+    
+    return 0;
+}
+```
+
+---
+
+## Process Structure
+
+Both functions populate the following structure:
+
+```c
+typedef struct lm_process_t {
+    lm_pid_t  pid;          // Process ID
+    lm_pid_t  ppid;         // Parent process ID
+    lm_arch_t arch;         // Process architecture (LM_ARCH_X86, LM_ARCH_X64, etc.)
+    lm_size_t bits;         // Process bits (32 or 64)
+    lm_time_t start_time;   // Process start timestamp in milliseconds since last boot
+    lm_char_t path[LM_PATH_MAX];  // Full path to process executable
+    lm_char_t name[LM_PATH_MAX];  // Process name
+} lm_process_t;
+```
+
+### Field Descriptions
+
+- **pid**: The unique identifier for the process
+- **ppid**: The process ID of the parent process
+- **arch**: The architecture of the process (see `lm_arch_t` enum)
+- **bits**: Either 32 or 64, indicating the process bitness
+- **start_time**: Timestamp in milliseconds since the system booted
+- **path**: Full filesystem path to the process executable
+- **name**: Just the executable name (without path)
+
+---
+
+## Usage Comparison
+
+```c
+// Get current process
+lm_process_t current;
+LM_GetProcess(&current);
+
+// Get specific process by PID
+lm_process_t target;
+LM_GetProcessEx(1234, &target);
+
+// Check if both processes are the same
+if (current.pid == target.pid) {
+    printf("Same process!\n");
+}
+```
+
+## Notes
+
+- `LM_GetProcess` is faster as it only queries the current process
+- `LM_GetProcessEx` may require elevated privileges on some systems
+- The process must be running at the time of the call
+- Use [LM_IsProcessAlive](/api/process/process-utils#lm-isprocessalive) to verify if a process is still running
+
+## See Also
+
+- [LM_EnumProcesses](/api/process/enum-processes) - Enumerate all processes
+- [LM_FindProcess](/api/process/find-process) - Find a process by name
+- [LM_IsProcessAlive](/api/process/process-utils#lm-isprocessalive) - Check if a process is alive
+- [LM_GetCommandLine](/api/process/process-utils#lm-getcommandline) - Get process command line arguments

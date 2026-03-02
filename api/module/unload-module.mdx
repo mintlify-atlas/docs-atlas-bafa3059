@@ -1,0 +1,268 @@
+---
+title: 'Unload Module'
+description: 'Unload a module (library/DLL) from the current or a specified process'
+icon: 'upload'
+---
+
+## Overview
+
+The Unload Module APIs allow you to dynamically unload a module (shared library/DLL) from a process at runtime. This is useful for removing injected code, unloading plugins, or freeing resources.
+
+<Warning>
+  Unloading modules can be dangerous and may cause crashes if:
+  - Other code is still using functions or data from the module
+  - The module has active threads running
+  - There are unresolved references to the module
+  
+  Always ensure the module is no longer in use before unloading.
+</Warning>
+
+## lm_module_t Structure
+
+The `lm_module_t` structure contains information about a loaded module:
+
+```c
+typedef struct lm_module_t {
+    lm_address_t base;              // Base address of the module
+    lm_address_t end;               // End address of the module
+    lm_size_t    size;              // Size of the module in bytes
+    lm_char_t    path[LM_PATH_MAX]; // Full path to the module
+    lm_char_t    name[LM_PATH_MAX]; // Module name
+} lm_module_t;
+```
+
+### Fields
+
+<ParamField path="base" type="lm_address_t">
+  Base address where the module is loaded in memory
+</ParamField>
+
+<ParamField path="end" type="lm_address_t">
+  End address of the module in memory
+</ParamField>
+
+<ParamField path="size" type="lm_size_t">
+  Total size of the module in bytes
+</ParamField>
+
+<ParamField path="path" type="lm_char_t[LM_PATH_MAX]">
+  Full file system path to the module
+</ParamField>
+
+<ParamField path="name" type="lm_char_t[LM_PATH_MAX]">
+  Name of the module (filename)
+</ParamField>
+
+## LM_UnloadModule
+
+Unloads a module from the current process.
+
+### Signature
+
+```c
+LM_API lm_bool_t LM_CALL
+LM_UnloadModule(const lm_module_t *module);
+```
+
+### Parameters
+
+<ParamField path="module" type="const lm_module_t*" required>
+  The module that you want to unload from the process. This should be a pointer to a `lm_module_t` structure obtained from `LM_FindModule`, `LM_LoadModule`, or `LM_EnumModules`.
+</ParamField>
+
+### Returns
+
+Returns `LM_TRUE` if the module was successfully unloaded, and `LM_FALSE` if it fails.
+
+### Example
+
+```c
+#include <libmem/libmem.h>
+#include <stdio.h>
+
+int main()
+{
+    lm_module_t plugin_mod;
+    
+    // Load a plugin
+    if (!LM_LoadModule("/path/to/plugin.so", &plugin_mod)) {
+        printf("Failed to load plugin\n");
+        return 1;
+    }
+    
+    printf("[*] Plugin loaded: %s\n", plugin_mod.name);
+    printf("[*] Base address: %p\n", (void *)plugin_mod.base);
+    
+    // Use the plugin...
+    // ...
+    
+    // Unload the plugin when done
+    if (LM_UnloadModule(&plugin_mod)) {
+        printf("[*] Plugin unloaded successfully\n");
+    } else {
+        printf("[!] Failed to unload plugin\n");
+    }
+    
+    return 0;
+}
+```
+
+### Unloading a Found Module
+
+```c
+lm_module_t old_plugin;
+
+// Find a previously loaded module
+if (LM_FindModule("oldplugin.dll", &old_plugin)) {
+    printf("Found old plugin at: %p\n", (void *)old_plugin.base);
+    
+    // Unload it
+    if (LM_UnloadModule(&old_plugin)) {
+        printf("Old plugin removed\n");
+    }
+}
+```
+
+## LM_UnloadModuleEx
+
+Unloads a module from a specified process.
+
+### Signature
+
+```c
+LM_API lm_bool_t LM_CALL
+LM_UnloadModuleEx(const lm_process_t *process,
+                  const lm_module_t  *module);
+```
+
+### Parameters
+
+<ParamField path="process" type="const lm_process_t*" required>
+  The process that the module will be unloaded from.
+</ParamField>
+
+<ParamField path="module" type="const lm_module_t*" required>
+  The module that you want to unload from the process. This should be a pointer to a `lm_module_t` structure obtained from `LM_FindModuleEx`, `LM_LoadModuleEx`, or `LM_EnumModulesEx`.
+</ParamField>
+
+### Returns
+
+Returns `LM_TRUE` if the module was successfully unloaded, and `LM_FALSE` if it fails.
+
+### Example
+
+```c
+#include <libmem/libmem.h>
+#include <stdio.h>
+
+int main()
+{
+    lm_process_t target_process;
+    lm_module_t injected_dll;
+    
+    // Find the target process
+    if (!LM_FindProcess("game.exe", &target_process)) {
+        printf("Failed to find target process\n");
+        return 1;
+    }
+    
+    printf("[*] Found process: %s (PID: %d)\n", target_process.name, target_process.pid);
+    
+    // Inject a DLL
+    if (!LM_LoadModuleEx(&target_process, "C:\\hack\\cheat.dll", &injected_dll)) {
+        printf("Failed to inject DLL\n");
+        return 1;
+    }
+    
+    printf("[*] DLL injected: %s at %p\n", injected_dll.name, (void *)injected_dll.base);
+    
+    // Do some work...
+    // ...
+    
+    // Clean up: unload the injected DLL
+    if (LM_UnloadModuleEx(&target_process, &injected_dll)) {
+        printf("[*] DLL ejected successfully\n");
+    } else {
+        printf("[!] Failed to eject DLL\n");
+    }
+    
+    return 0;
+}
+```
+
+### Removing an Unwanted Module
+
+```c
+lm_process_t game_process;
+lm_module_t malicious_mod;
+
+// Find the game process
+if (LM_FindProcess("game.exe", &game_process)) {
+    // Look for an unwanted module
+    if (LM_FindModuleEx(&game_process, "badmod.dll", &malicious_mod)) {
+        printf("Found unwanted module: %s\n", malicious_mod.name);
+        
+        // Remove it
+        if (LM_UnloadModuleEx(&game_process, &malicious_mod)) {
+            printf("Unwanted module removed\n");
+        }
+    }
+}
+```
+
+## Platform-Specific Notes
+
+### Windows
+- Uses `FreeLibrary` internally
+- Decrements the reference count of the module
+- Module is only fully unloaded when reference count reaches zero
+
+### Linux/FreeBSD
+- Uses `dlclose` internally
+- Also uses reference counting
+- Module is unloaded when all references are released
+
+## Best Practices
+
+### Safe Unloading
+
+1. **Stop all threads**: Ensure no threads are executing code from the module
+2. **Release resources**: Clean up any resources allocated by the module
+3. **Unhook functions**: Remove any hooks installed by the module
+4. **Check dependencies**: Verify no other modules depend on this one
+
+```c
+lm_module_t plugin;
+if (LM_LoadModule("plugin.so", &plugin)) {
+    // Get cleanup function from the module
+    lm_address_t cleanup_fn = LM_FindSymbolAddress(&plugin, "plugin_cleanup");
+    
+    if (cleanup_fn != LM_ADDRESS_BAD) {
+        // Call cleanup before unloading
+        void (*cleanup)(void) = (void (*)(void))cleanup_fn;
+        cleanup();
+    }
+    
+    // Now safe to unload
+    LM_UnloadModule(&plugin);
+}
+```
+
+### Error Handling
+
+```c
+if (!LM_UnloadModule(&module)) {
+    printf("Failed to unload module: %s\n", module.name);
+    printf("The module may still be in use\n");
+    // Handle error appropriately
+    // - Don't try to access the module anymore
+    // - Log the failure
+    // - Possibly retry later
+}
+```
+
+## See Also
+
+- [Load Module](/api/module/load-module) - Load a module into a process
+- [Find Module](/api/module/find-module) - Find a loaded module by name
+- [Enumerate Modules](/api/module/enum-modules) - Enumerate all modules in a process

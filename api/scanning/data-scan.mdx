@@ -1,0 +1,112 @@
+---
+title: Data Scan
+description: Scan memory for exact byte sequences
+---
+
+Data scan functions search for exact byte sequences in memory. This is useful when you know the exact bytes you're looking for, such as specific values or data structures.
+
+## LM_DataScan
+
+Scans a specified memory address range for a specific data pattern in the current process and returns the address where the data is found.
+
+```c
+lm_address_t LM_DataScan(
+    lm_bytearray_t data,
+    lm_size_t      datasize,
+    lm_address_t   address,
+    lm_size_t      scansize
+);
+```
+
+<ParamField path="data" type="lm_bytearray_t" required>
+  The data to be scanned for in memory.
+</ParamField>
+
+<ParamField path="datasize" type="lm_size_t" required>
+  The size of the data array. It indicates the number of bytes that need to match consecutively in order to consider it a match.
+</ParamField>
+
+<ParamField path="address" type="lm_address_t" required>
+  The starting memory address where the scanning operation will begin. The function will scan a range of memory starting from this address to find the data.
+</ParamField>
+
+<ParamField path="scansize" type="lm_size_t" required>
+  The size of the memory region to scan starting from the specified `address`. It determines the range within which the function will search for a match with the provided `data` array.
+</ParamField>
+
+### Returns
+
+Returns the memory address where a match for the provided data was found. If no match is found, returns `LM_ADDRESS_BAD`.
+
+---
+
+## LM_DataScanEx
+
+Scans a specified memory address range for a specific data pattern in a remote process and returns the address where the data is found.
+
+```c
+lm_address_t LM_DataScanEx(
+    const lm_process_t *process,
+    lm_bytearray_t      data,
+    lm_size_t           datasize,
+    lm_address_t        address,
+    lm_size_t           scansize
+);
+```
+
+<ParamField path="process" type="const lm_process_t*" required>
+  The process whose memory will be scanned.
+</ParamField>
+
+<ParamField path="data" type="lm_bytearray_t" required>
+  The data to be scanned for in memory.
+</ParamField>
+
+<ParamField path="datasize" type="lm_size_t" required>
+  The size of the data array. It indicates the number of bytes that need to match consecutively in order to consider it a match.
+</ParamField>
+
+<ParamField path="address" type="lm_address_t" required>
+  The starting memory address where the scanning operation will begin. The function will scan a range of memory starting from this address to find the data.
+</ParamField>
+
+<ParamField path="scansize" type="lm_size_t" required>
+  The size of the memory region to scan starting from the specified `address`. It determines the range within which the function will search for a match with the provided `data` array.
+</ParamField>
+
+### Returns
+
+Returns the memory address where a match for the provided data was found. If no match is found, returns `LM_ADDRESS_BAD`.
+
+---
+
+## Example (C)
+
+```c
+#include <libmem/libmem.h>
+
+int main()
+{
+    lm_module_t game_mod;
+    lm_address_t scan_result;
+    lm_byte_t search_bytes[] = { 0xDE, 0xAD, 0xBE, 0xEF };
+
+    LM_FindModule("game.dll", &game_mod);
+    
+    // Scan for exact byte sequence
+    scan_result = LM_DataScan(
+        search_bytes,
+        sizeof(search_bytes),
+        game_mod.base,
+        game_mod.size
+    );
+
+    if (scan_result != LM_ADDRESS_BAD) {
+        printf("[*] Found bytes at: %p\n", scan_result);
+    }
+
+    return 0;
+}
+```
+
+This example demonstrates scanning for an exact sequence of bytes within a module's memory range.

@@ -1,0 +1,223 @@
+---
+title: 'Allocate and Free Memory'
+description: 'Allocate and deallocate memory in processes'
+---
+
+<Note>
+Memory allocation and deallocation functions are page aligned.
+</Note>
+
+## LM_AllocMemory
+
+Allocates memory with a specified size and protection flags, returning the allocated memory address.
+
+```c
+lm_address_t LM_AllocMemory(
+    lm_size_t size,
+    lm_prot_t prot
+);
+```
+
+<ParamField path="size" type="lm_size_t">
+  The size of memory to be allocated. If the size is 0, the function will allocate a full page of memory. If a specific size is provided, that amount of memory will be allocated, aligned to the next page size.
+</ParamField>
+
+<ParamField path="prot" type="lm_prot_t">
+  The memory protection flags for the allocated memory region. It is a bit mask of `LM_PROT_X` (execute), `LM_PROT_R` (read), `LM_PROT_W` (write). See [Memory Protection](/concepts/memory-protection) for more details.
+</ParamField>
+
+**Returns:** The memory address of the allocated memory with the specified allocation options, or `LM_ADDRESS_BAD` if it fails.
+
+### Example
+
+```c
+// Allocate 4096 bytes with read-write-execute permissions
+lm_address_t alloc = LM_AllocMemory(4096, LM_PROT_XRW);
+
+if (alloc != LM_ADDRESS_BAD) {
+    printf("Allocated memory at: %p\n", (void *)alloc);
+    
+    // Use the allocated memory
+    lm_byte_t shellcode[] = {0x90, 0x90, 0x90, 0xC3};
+    LM_WriteMemory(alloc, shellcode, sizeof(shellcode));
+    
+    // Don't forget to free when done
+    LM_FreeMemory(alloc, 4096);
+}
+```
+
+---
+
+## LM_AllocMemoryEx
+
+Allocates memory in a specified process with the given size and memory protection flags.
+
+```c
+lm_address_t LM_AllocMemoryEx(
+    const lm_process_t *process,
+    lm_size_t           size,
+    lm_prot_t           prot
+);
+```
+
+<ParamField path="process" type="const lm_process_t*">
+  A pointer to the process that the memory will be allocated to.
+</ParamField>
+
+<ParamField path="size" type="lm_size_t">
+  The size of memory to be allocated. If the size is 0, the function will allocate a full page of memory. If a specific size is provided, that amount of memory will be allocated, aligned to the next page size.
+</ParamField>
+
+<ParamField path="prot" type="lm_prot_t">
+  The memory protection flags for the allocated memory region. It is a bit mask of `LM_PROT_X` (execute), `LM_PROT_R` (read), `LM_PROT_W` (write). See [Memory Protection](/concepts/memory-protection) for more details.
+</ParamField>
+
+**Returns:** A memory address of type `lm_address_t` if the memory allocation is successful. If there are any issues, it returns `LM_ADDRESS_BAD`.
+
+### Example
+
+```c
+lm_process_t proc;
+if (LM_FindProcess("target.exe", &proc)) {
+    // Allocate 4096 bytes in remote process with RWX permissions
+    lm_address_t alloc = LM_AllocMemoryEx(&proc, 4096, LM_PROT_XRW);
+    
+    if (alloc != LM_ADDRESS_BAD) {
+        printf("Allocated memory in remote process at: %p\n", (void *)alloc);
+        
+        // Write shellcode to allocated memory
+        lm_byte_t shellcode[] = {0x90, 0x90, 0x90, 0xC3};
+        LM_WriteMemoryEx(&proc, alloc, shellcode, sizeof(shellcode));
+        
+        // Free when done
+        LM_FreeMemoryEx(&proc, alloc, 4096);
+    }
+}
+```
+
+---
+
+## LM_FreeMemory
+
+Deallocates memory that was previously allocated with `LM_AllocMemory`.
+
+```c
+lm_bool_t LM_FreeMemory(
+    lm_address_t alloc,
+    lm_size_t    size
+);
+```
+
+<ParamField path="alloc" type="lm_address_t">
+  The address of the memory block that was previously allocated.
+</ParamField>
+
+<ParamField path="size" type="lm_size_t">
+  The size of the memory block that was previously allocated. If the size is 0, the function will use the system's page size for unmapping the memory.
+</ParamField>
+
+**Returns:** `LM_TRUE` if the memory deallocation operation is successful, and `LM_FALSE` if the operation fails.
+
+### Example
+
+```c
+lm_address_t alloc = LM_AllocMemory(4096, LM_PROT_RW);
+
+if (alloc != LM_ADDRESS_BAD) {
+    // Use the allocated memory...
+    
+    // Free the memory when done
+    if (LM_FreeMemory(alloc, 4096)) {
+        printf("Memory freed successfully\n");
+    }
+}
+```
+
+---
+
+## LM_FreeMemoryEx
+
+Deallocates memory that was previously allocated with `LM_AllocMemoryEx` on a given process.
+
+```c
+lm_bool_t LM_FreeMemoryEx(
+    const lm_process_t *process,
+    lm_address_t        alloc,
+    lm_size_t           size
+);
+```
+
+<ParamField path="process" type="const lm_process_t*">
+  A pointer to the process that the memory will be deallocated from.
+</ParamField>
+
+<ParamField path="alloc" type="lm_address_t">
+  The address of the memory block that was previously allocated and needs to be freed.
+</ParamField>
+
+<ParamField path="size" type="lm_size_t">
+  The size of the memory block that was previously allocated and now needs to be freed. If the size is 0, the function will use the system's page size as the default size for freeing the memory.
+</ParamField>
+
+**Returns:** A boolean value (`LM_TRUE` or `LM_FALSE`) indicating whether the memory deallocation operation was successful or not.
+
+### Example
+
+```c
+lm_process_t proc;
+if (LM_FindProcess("target.exe", &proc)) {
+    lm_address_t alloc = LM_AllocMemoryEx(&proc, 4096, LM_PROT_RW);
+    
+    if (alloc != LM_ADDRESS_BAD) {
+        // Use the allocated memory...
+        
+        // Free the memory when done
+        if (LM_FreeMemoryEx(&proc, alloc, 4096)) {
+            printf("Remote memory freed successfully\n");
+        }
+    }
+}
+```
+
+---
+
+## Common Use Cases
+
+### Allocating Executable Memory
+
+```c
+// Allocate memory for shellcode execution
+lm_address_t shellcode_mem = LM_AllocMemory(1024, LM_PROT_XRW);
+
+if (shellcode_mem != LM_ADDRESS_BAD) {
+    // Write shellcode
+    lm_byte_t code[] = {0x90, 0x90, 0xC3};
+    LM_WriteMemory(shellcode_mem, code, sizeof(code));
+    
+    // Execute or hook...
+    
+    // Clean up
+    LM_FreeMemory(shellcode_mem, 1024);
+}
+```
+
+### Remote Process Injection
+
+```c
+lm_process_t target;
+if (LM_FindProcess("game.exe", &target)) {
+    // Allocate memory in target process
+    lm_address_t remote_mem = LM_AllocMemoryEx(&target, 4096, LM_PROT_XRW);
+    
+    if (remote_mem != LM_ADDRESS_BAD) {
+        // Write payload to remote memory
+        lm_byte_t payload[256] = {/* ... */};
+        LM_WriteMemoryEx(&target, remote_mem, payload, sizeof(payload));
+        
+        // Create remote thread or inject...
+        
+        // Clean up
+        LM_FreeMemoryEx(&target, remote_mem, 4096);
+    }
+}
+```

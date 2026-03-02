@@ -1,0 +1,257 @@
+---
+title: Platform Support
+description: Supported operating systems and architectures
+---
+
+# Platform Support
+
+libmem is designed to be cross-platform, supporting major operating systems and processor architectures used in modern computing.
+
+## Operating Systems
+
+libmem supports three major operating system families:
+
+<CardGroup cols={3}>
+  <Card title="Windows" icon="windows">
+    Full support for Windows 7 and later
+  </Card>
+  <Card title="Linux" icon="linux">
+    Complete support for modern Linux distributions
+  </Card>
+  <Card title="FreeBSD" icon="freebsd">
+    BSD support with most features working
+  </Card>
+</CardGroup>
+
+## Architecture Support Matrix
+
+The following table shows the current support status for each combination of operating system and CPU architecture:
+
+<Note>
+  Status indicators:
+  - **Full Support**: 100% working, thoroughly tested
+  - **Mostly Working**: Core features working, minor issues may exist
+  - **Untested**: Should work but hasn't been extensively tested
+</Note>
+
+### x86 (32-bit Intel/AMD)
+
+<CardGroup cols={3}>
+  <Card title="Windows x86" icon="check">
+    **Status**: Full Support ✓
+    
+    Fully tested and production-ready
+  </Card>
+  <Card title="Linux x86" icon="check">
+    **Status**: Full Support ✓
+    
+    Fully tested and production-ready
+  </Card>
+  <Card title="FreeBSD x86" icon="circle-check">
+    **Status**: Mostly Working ✓
+    
+    Core features working reliably
+  </Card>
+</CardGroup>
+
+### x64 (64-bit Intel/AMD)
+
+<CardGroup cols={3}>
+  <Card title="Windows x64" icon="check">
+    **Status**: Full Support ✓
+    
+    Fully tested and production-ready
+  </Card>
+  <Card title="Linux x64" icon="check">
+    **Status**: Full Support ✓
+    
+    Fully tested and production-ready
+  </Card>
+  <Card title="FreeBSD x64" icon="circle-check">
+    **Status**: Mostly Working ✓
+    
+    Core features working reliably
+  </Card>
+</CardGroup>
+
+### ARM (32-bit)
+
+<CardGroup cols={3}>
+  <Card title="Windows ARM" icon="triangle-exclamation">
+    **Status**: Untested ⚠️
+    
+    Not extensively tested yet
+  </Card>
+  <Card title="Linux ARM" icon="triangle-exclamation">
+    **Status**: Untested ⚠️
+    
+    Not extensively tested yet
+  </Card>
+  <Card title="FreeBSD ARM" icon="triangle-exclamation">
+    **Status**: Untested ⚠️
+    
+    Not extensively tested yet
+  </Card>
+</CardGroup>
+
+### ARM64/AArch64 (64-bit ARM)
+
+<CardGroup cols={3}>
+  <Card title="Windows ARM64" icon="triangle-exclamation">
+    **Status**: Untested ⚠️
+    
+    Not extensively tested yet
+  </Card>
+  <Card title="Linux ARM64" icon="triangle-exclamation">
+    **Status**: Untested ⚠️
+    
+    Not extensively tested yet
+  </Card>
+  <Card title="FreeBSD ARM64" icon="triangle-exclamation">
+    **Status**: Untested ⚠️
+    
+    Not extensively tested yet
+  </Card>
+</CardGroup>
+
+<Info>
+  ARM and ARM64 support is built into libmem but hasn't been extensively tested. If you're using libmem on ARM platforms, please report any issues on [GitHub](https://github.com/rdbo/libmem).
+</Info>
+
+## Platform-Specific Details
+
+### Windows
+
+<Card title="Requirements" icon="windows">
+  - **Minimum OS**: Windows 7
+  - **Recommended**: Windows 10/11
+  - **SDK**: Windows SDK required for building
+  - **Dependencies**: User32.lib, Psapi.lib, Ntdll.lib, Shell32.lib
+</Card>
+
+Windows support is comprehensive with full access to process manipulation through Windows APIs. Both internal and external modes are fully functional.
+
+**Supported Architectures on Windows**:
+- x86 (32-bit) - Full Support
+- x64 (64-bit) - Full Support  
+- ARM (32-bit) - Untested
+- ARM64 (64-bit) - Untested
+
+### Linux
+
+<Card title="Requirements" icon="linux">
+  - **Kernel**: Modern Linux kernel with ptrace support
+  - **Distributions**: Debian, Ubuntu, Arch, Fedora, and others
+  - **Dependencies**: libdl (-ldl), Linux headers for building
+  - **Build Tools**: GCC, G++, CMake, Make
+</Card>
+
+Linux support leverages ptrace for external process manipulation and direct memory access for internal operations.
+
+**Supported Architectures on Linux**:
+- x86 (32-bit) - Full Support
+- x64 (64-bit) - Full Support
+- ARM (32-bit) - Untested
+- ARM64/AArch64 (64-bit) - Untested
+
+**Special Notes**:
+- Android support is included (same as Linux)
+- Requires appropriate permissions for process manipulation
+
+### FreeBSD
+
+<Card title="Requirements" icon="freebsd">
+  - **OS**: FreeBSD with procfs mounted
+  - **Dependencies**: libdl, libkvm, libprocstat, libelf
+  - **Build Tools**: Clang, Clang++, CMake, Make
+  - **Special Setup**: procfs must be mounted at `/proc`
+</Card>
+
+FreeBSD support is mostly complete with some platform-specific considerations.
+
+**Supported Architectures on FreeBSD**:
+- x86 (32-bit) - Mostly Working
+- x64 (64-bit) - Mostly Working
+- ARM (32-bit) - Untested  
+- ARM64/AArch64 (64-bit) - Untested
+
+**Setup Instructions**:
+
+1. Add to `/etc/fstab`:
+   ```bash
+   proc    /proc    procfs    rw    0    0
+   ```
+
+2. Mount procfs:
+   ```bash
+   mount -t procfs proc /proc
+   ```
+
+## Architecture Detection
+
+libmem automatically detects the target architecture at runtime and configures itself accordingly. The following architectures are detected:
+
+- **x86_16**: 16-bit x86 (legacy)
+- **x86_32**: 32-bit x86 (i686, i386)
+- **x86_64**: 64-bit x86 (AMD64, x64)
+- **ARMv7**: 32-bit ARM
+- **ARMv8**: 64-bit ARM (AArch64)
+- **Thumb**: ARM Thumb mode variants
+
+You can check the architecture of a process using:
+
+```c
+lm_process_t process;
+LM_GetProcess(&process);
+
+printf("Process architecture: %u\n", process.arch);
+printf("Process bits: %zu\n", process.bits);
+```
+
+## Dependencies
+
+libmem bundles most of its dependencies, but some platform-specific libraries are required:
+
+### All Platforms
+<Card icon="box">
+  - **capstone** (included) - Disassembly engine
+  - **keystone** (included) - Assembly engine  
+  - **LIEF** (included) - Binary parsing
+  - **libstdc++** - C++ standard library
+  - **libmath** - Math library
+</Card>
+
+### Platform-Specific
+
+**Windows**:
+- Windows SDK (user32.lib, psapi.lib, ntdll.lib, shell32.lib)
+
+**Linux/Android**:
+- libdl (-ldl)
+
+**FreeBSD**:
+- libdl (-ldl)
+- libkvm (-lkvm)
+- libprocstat (-lprocstat)
+- libelf (-lelf)
+
+## Testing Your Platform
+
+To verify libmem works correctly on your platform:
+
+1. Build the tests using `-DLIBMEM_BUILD_TESTS=ON`
+2. Run the test suite
+3. Check that core functionality works
+
+If you encounter issues on any platform, please report them on [GitHub Issues](https://github.com/rdbo/libmem/issues).
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Installation Guide" href="/installation">
+    Install libmem for your platform
+  </Card>
+  <Card title="Getting Started" href="/quickstart">
+    Start building with libmem
+  </Card>
+</CardGroup>

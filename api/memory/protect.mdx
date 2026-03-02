@@ -1,0 +1,231 @@
+---
+title: 'Memory Protection'
+description: 'Change memory protection flags'
+---
+
+<Note>
+In `LM_ProtMemory` and `LM_ProtMemoryEx`, the `oldprot_out` parameter contains the old protection of the first page of the whole region, which is enough for most cases. You should pick the old protections yourself with `LM_FindSegments` or `LM_FindSegmentsEx` in case of a multi-segment memory protection.
+</Note>
+
+## LM_ProtMemory
+
+Sets memory protection flags for a specified memory address range.
+
+```c
+lm_bool_t LM_ProtMemory(
+    lm_address_t address,
+    lm_size_t    size,
+    lm_prot_t    prot,
+    lm_prot_t   *oldprot_out
+);
+```
+
+<ParamField path="address" type="lm_address_t">
+  The memory address to be protected.
+</ParamField>
+
+<ParamField path="size" type="lm_size_t">
+  The size of memory to be protected. If the size is 0, the function will default to using the system's page size for the operation.
+</ParamField>
+
+<ParamField path="prot" type="lm_prot_t">
+  The new protection flags that will be applied to the memory region. It is a bit mask of `LM_PROT_X` (execute), `LM_PROT_R` (read), `LM_PROT_W` (write). See [Memory Protection](/concepts/memory-protection) for more details.
+</ParamField>
+
+<ParamField path="oldprot_out" type="lm_prot_t*">
+  A pointer to a variable that will store the old protection flags of the memory segment before they are updated with the new protection settings. Can be `NULL` if you don't need the old protection.
+</ParamField>
+
+**Returns:** `LM_TRUE` if the memory protection operation was successful, or `LM_FALSE` if it failed.
+
+### Example
+
+```c
+lm_address_t addr = 0x12345678;
+lm_prot_t old_prot;
+
+// Change protection to read-write-execute
+if (LM_ProtMemory(addr, 4096, LM_PROT_XRW, &old_prot)) {
+    printf("Protection changed successfully\n");
+    printf("Old protection: 0x%x\n", old_prot);
+    
+    // Modify the memory...
+    lm_byte_t data[] = {0x90, 0x90, 0x90};
+    LM_WriteMemory(addr, data, sizeof(data));
+    
+    // Restore old protection
+    LM_ProtMemory(addr, 4096, old_prot, NULL);
+}
+```
+
+---
+
+## LM_ProtMemoryEx
+
+Modifies memory protection flags for a specified address range in a given process.
+
+```c
+lm_bool_t LM_ProtMemoryEx(
+    const lm_process_t *process,
+    lm_address_t        address,
+    lm_size_t           size,
+    lm_prot_t           prot,
+    lm_prot_t          *oldprot_out
+);
+```
+
+<ParamField path="process" type="const lm_process_t*">
+  A pointer to the process that the memory flags will be modified from.
+</ParamField>
+
+<ParamField path="address" type="lm_address_t">
+  The memory address to be protected.
+</ParamField>
+
+<ParamField path="size" type="lm_size_t">
+  The size of memory to be protected. If the size is 0, the function will default to using the system's page size for the operation.
+</ParamField>
+
+<ParamField path="prot" type="lm_prot_t">
+  The new protection flags that will be applied to the memory region. It is a bit mask of `LM_PROT_X` (execute), `LM_PROT_R` (read), `LM_PROT_W` (write). See [Memory Protection](/concepts/memory-protection) for more details.
+</ParamField>
+
+<ParamField path="oldprot_out" type="lm_prot_t*">
+  A pointer to a variable that will store the old protection flags of the memory segment before they are updated. Can be `NULL` if you don't need the old protection.
+</ParamField>
+
+**Returns:** `LM_TRUE` if the memory protection operation was successful, or `LM_FALSE` if it failed.
+
+### Example
+
+```c
+lm_process_t proc;
+if (LM_FindProcess("target.exe", &proc)) {
+    lm_address_t addr = 0x12345678;
+    lm_prot_t old_prot;
+    
+    // Change protection in remote process
+    if (LM_ProtMemoryEx(&proc, addr, 4096, LM_PROT_XRW, &old_prot)) {
+        printf("Remote memory protection changed\n");
+        
+        // Modify remote memory...
+        lm_byte_t patch[] = {0x90, 0x90, 0x90};
+        LM_WriteMemoryEx(&proc, addr, patch, sizeof(patch));
+        
+        // Restore old protection
+        LM_ProtMemoryEx(&proc, addr, 4096, old_prot, NULL);
+    }
+}
+```
+
+---
+
+## Memory Protection Flags
+
+The following protection flags can be combined using bitwise OR:
+
+| Flag | Description |
+|------|-------------|
+| `LM_PROT_NONE` | No access |
+| `LM_PROT_X` | Execute permission |
+| `LM_PROT_R` | Read permission |
+| `LM_PROT_W` | Write permission |
+| `LM_PROT_XR` | Execute + Read |
+| `LM_PROT_XW` | Execute + Write |
+| `LM_PROT_RW` | Read + Write |
+| `LM_PROT_XRW` | Execute + Read + Write |
+
+For more information about memory protection, see the [Memory Protection](/concepts/memory-protection) concept page.
+
+---
+
+## Common Use Cases
+
+### Patching Read-Only Memory
+
+```c
+lm_module_t mod;
+if (LM_FindModule("game.dll", &mod)) {
+    lm_address_t patch_addr = mod.base + 0x1234;
+    lm_prot_t old_prot;
+    
+    // Make memory writable
+    if (LM_ProtMemory(patch_addr, 16, LM_PROT_XRW, &old_prot)) {
+        // Apply patch
+        lm_byte_t patch[] = {0x90, 0x90}; // NOP
+        LM_WriteMemory(patch_addr, patch, sizeof(patch));
+        
+        // Restore original protection
+        LM_ProtMemory(patch_addr, 16, old_prot, NULL);
+        printf("Patch applied successfully\n");
+    }
+}
+```
+
+### Making Data Executable
+
+```c
+// Allocate memory
+lm_address_t code_mem = LM_AllocMemory(1024, LM_PROT_RW);
+
+if (code_mem != LM_ADDRESS_BAD) {
+    // Write shellcode
+    lm_byte_t shellcode[] = {0x90, 0x90, 0x90, 0xC3};
+    LM_WriteMemory(code_mem, shellcode, sizeof(shellcode));
+    
+    // Make it executable
+    if (LM_ProtMemory(code_mem, 1024, LM_PROT_XR, NULL)) {
+        printf("Memory is now executable\n");
+        // Execute the code...
+    }
+    
+    LM_FreeMemory(code_mem, 1024);
+}
+```
+
+### Remote Process Memory Modification
+
+```c
+lm_process_t target;
+if (LM_FindProcess("game.exe", &target)) {
+    lm_module_t mod;
+    if (LM_FindModuleEx(&target, "engine.dll", &mod)) {
+        lm_address_t target_addr = mod.base + 0x5678;
+        lm_prot_t old_prot;
+        
+        // Change remote memory protection
+        if (LM_ProtMemoryEx(&target, target_addr, 32, LM_PROT_XRW, &old_prot)) {
+            // Write patch to remote process
+            lm_byte_t hook[] = {0xE9, 0x00, 0x00, 0x00, 0x00}; // JMP
+            LM_WriteMemoryEx(&target, target_addr, hook, sizeof(hook));
+            
+            // Restore protection
+            LM_ProtMemoryEx(&target, target_addr, 32, old_prot, NULL);
+            printf("Remote hook installed\n");
+        }
+    }
+}
+```
+
+### Preserving Protection Across Multiple Operations
+
+```c
+lm_address_t addr = 0x12345678;
+lm_prot_t old_prot;
+
+// Save and change protection
+if (LM_ProtMemory(addr, 4096, LM_PROT_XRW, &old_prot)) {
+    // Multiple operations on the same region
+    lm_byte_t patch1[] = {0x90, 0x90};
+    LM_WriteMemory(addr, patch1, sizeof(patch1));
+    
+    lm_byte_t patch2[] = {0x31, 0xC0};
+    LM_WriteMemory(addr + 10, patch2, sizeof(patch2));
+    
+    lm_byte_t patch3[] = {0xC3};
+    LM_WriteMemory(addr + 20, patch3, sizeof(patch3));
+    
+    // Restore original protection once
+    LM_ProtMemory(addr, 4096, old_prot, NULL);
+}
+```

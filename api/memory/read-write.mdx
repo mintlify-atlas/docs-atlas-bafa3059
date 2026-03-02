@@ -1,0 +1,264 @@
+---
+title: 'Read and Write Memory'
+description: 'Read from and write to process memory'
+---
+
+## LM_ReadMemory
+
+Reads memory from a source address and copies it to a destination buffer.
+
+```c
+lm_size_t LM_ReadMemory(
+    lm_address_t source,
+    lm_byte_t   *dest,
+    lm_size_t    size
+);
+```
+
+<ParamField path="source" type="lm_address_t">
+  The memory address from which data will be read.
+</ParamField>
+
+<ParamField path="dest" type="lm_byte_t*">
+  A pointer to a memory location where the data read from the source address will be stored.
+</ParamField>
+
+<ParamField path="size" type="lm_size_t">
+  The number of bytes to read from the memory starting at the source address.
+</ParamField>
+
+**Returns:** The number of bytes read from memory.
+
+### Example
+
+```c
+lm_byte_t buffer[256];
+lm_address_t addr = 0x12345678;
+lm_size_t bytes_read = LM_ReadMemory(addr, buffer, sizeof(buffer));
+
+if (bytes_read == sizeof(buffer)) {
+    printf("Successfully read %zu bytes\n", bytes_read);
+}
+```
+
+---
+
+## LM_ReadMemoryEx
+
+Reads memory from a remote process and returns the number of bytes read.
+
+```c
+lm_size_t LM_ReadMemoryEx(
+    const lm_process_t *process,
+    lm_address_t        source,
+    lm_byte_t          *dest,
+    lm_size_t           size
+);
+```
+
+<ParamField path="process" type="const lm_process_t*">
+  A pointer to the process that the memory will be read from.
+</ParamField>
+
+<ParamField path="source" type="lm_address_t">
+  The starting address in the target process from which you want to read memory.
+</ParamField>
+
+<ParamField path="dest" type="lm_byte_t*">
+  A pointer to the destination buffer where the memory read operation will store the data.
+</ParamField>
+
+<ParamField path="size" type="lm_size_t">
+  The number of bytes to read from the memory location specified by the source address.
+</ParamField>
+
+**Returns:** The number of bytes successfully read from the specified memory address in the target process. If an error occurs during the read operation, it returns 0.
+
+### Example
+
+```c
+lm_process_t proc;
+if (LM_FindProcess("target.exe", &proc)) {
+    lm_byte_t buffer[256];
+    lm_address_t addr = 0x12345678;
+    lm_size_t bytes_read = LM_ReadMemoryEx(&proc, addr, buffer, sizeof(buffer));
+    
+    if (bytes_read > 0) {
+        printf("Read %zu bytes from remote process\n", bytes_read);
+    }
+}
+```
+
+---
+
+## LM_WriteMemory
+
+Writes data from a source array to a destination address in memory.
+
+```c
+lm_size_t LM_WriteMemory(
+    lm_address_t   dest,
+    lm_bytearray_t source,
+    lm_size_t      size
+);
+```
+
+<ParamField path="dest" type="lm_address_t">
+  The destination memory address where the data from the source array will be written to.
+</ParamField>
+
+<ParamField path="source" type="lm_bytearray_t">
+  A pointer to the data that needs to be written to the memory starting at the destination address.
+</ParamField>
+
+<ParamField path="size" type="lm_size_t">
+  The number of bytes to be written from the source array to the memory starting at the dest address.
+</ParamField>
+
+**Returns:** The number of bytes written to the destination memory address.
+
+### Example
+
+```c
+lm_byte_t data[] = {0x90, 0x90, 0x90}; // NOP instructions
+lm_address_t addr = 0x12345678;
+lm_size_t bytes_written = LM_WriteMemory(addr, data, sizeof(data));
+
+if (bytes_written == sizeof(data)) {
+    printf("Successfully wrote %zu bytes\n", bytes_written);
+}
+```
+
+---
+
+## LM_WriteMemoryEx
+
+Writes data from a source array to a destination address in a specified process.
+
+```c
+lm_size_t LM_WriteMemoryEx(
+    const lm_process_t *process,
+    lm_address_t        dest,
+    lm_bytearray_t      source,
+    lm_size_t           size
+);
+```
+
+<ParamField path="process" type="const lm_process_t*">
+  A pointer to a structure representing a process in the system.
+</ParamField>
+
+<ParamField path="dest" type="lm_address_t">
+  The destination address in the target process where the data from the source array will be written to.
+</ParamField>
+
+<ParamField path="source" type="lm_bytearray_t">
+  A pointer to the data that needs to be written to the memory of the target process.
+</ParamField>
+
+<ParamField path="size" type="lm_size_t">
+  The number of bytes to be written from the source bytearray to the memory address specified by dest.
+</ParamField>
+
+**Returns:** The number of bytes that were successfully written to the destination address in the process's memory. If an error occurs during the write operation, it returns 0.
+
+### Example
+
+```c
+lm_process_t proc;
+if (LM_FindProcess("target.exe", &proc)) {
+    lm_byte_t data[] = {0x90, 0x90, 0x90};
+    lm_address_t addr = 0x12345678;
+    lm_size_t bytes_written = LM_WriteMemoryEx(&proc, addr, data, sizeof(data));
+    
+    if (bytes_written > 0) {
+        printf("Wrote %zu bytes to remote process\n", bytes_written);
+    }
+}
+```
+
+---
+
+## LM_SetMemory
+
+Sets a specified memory region to a given byte value.
+
+```c
+lm_size_t LM_SetMemory(
+    lm_address_t dest,
+    lm_byte_t    byte,
+    lm_size_t    size
+);
+```
+
+<ParamField path="dest" type="lm_address_t">
+  The destination memory address where the byte value will be written to, starting from this address.
+</ParamField>
+
+<ParamField path="byte" type="lm_byte_t">
+  The value of the byte that will be written to the memory locations starting from the dest address.
+</ParamField>
+
+<ParamField path="size" type="lm_size_t">
+  The number of bytes to set in the memory starting from the dest address.
+</ParamField>
+
+**Returns:** The number of bytes that were successfully set to the specified value.
+
+### Example
+
+```c
+lm_address_t addr = 0x12345678;
+lm_size_t bytes_set = LM_SetMemory(addr, 0x00, 1024);
+
+if (bytes_set == 1024) {
+    printf("Successfully zeroed 1024 bytes\n");
+}
+```
+
+---
+
+## LM_SetMemoryEx
+
+Sets a specified memory region to a given byte value in a target process.
+
+```c
+lm_size_t LM_SetMemoryEx(
+    const lm_process_t *process,
+    lm_address_t        dest,
+    lm_byte_t           byte,
+    lm_size_t           size
+);
+```
+
+<ParamField path="process" type="const lm_process_t*">
+  A pointer to the process that the memory will be set.
+</ParamField>
+
+<ParamField path="dest" type="lm_address_t">
+  The destination address in the target process where the byte value will be written to.
+</ParamField>
+
+<ParamField path="byte" type="lm_byte_t">
+  The value of the byte that will be written to the memory locations starting from the dest address.
+</ParamField>
+
+<ParamField path="size" type="lm_size_t">
+  The number of bytes to set in the memory starting from the dest address.
+</ParamField>
+
+**Returns:** The number of bytes that were successfully set to the specified value in the memory region. If there are any errors, it returns 0.
+
+### Example
+
+```c
+lm_process_t proc;
+if (LM_FindProcess("target.exe", &proc)) {
+    lm_address_t addr = 0x12345678;
+    lm_size_t bytes_set = LM_SetMemoryEx(&proc, addr, 0x90, 1024);
+    
+    if (bytes_set > 0) {
+        printf("Set %zu bytes in remote process\n", bytes_set);
+    }
+}
+```

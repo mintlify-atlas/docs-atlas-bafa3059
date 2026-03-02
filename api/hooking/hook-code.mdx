@@ -1,0 +1,104 @@
+---
+title: LM_HookCode / LM_HookCodeEx
+description: Place hooks/detours on functions to redirect execution flow
+---
+
+## LM_HookCode
+
+Places a hook/detour onto the address `from`, redirecting it to the address `to`. Optionally generates a trampoline to call the original function.
+
+### Signature
+
+```c
+lm_size_t LM_HookCode(
+    lm_address_t  from,
+    lm_address_t  to,
+    lm_address_t *trampoline_out
+);
+```
+
+### Parameters
+
+<ParamField path="from" type="lm_address_t" required>
+  The address where the hook will be placed.
+</ParamField>
+
+<ParamField path="to" type="lm_address_t" required>
+  The address where the hook will jump to.
+</ParamField>
+
+<ParamField path="trampoline_out" type="lm_address_t*">
+  Optional pointer to an `lm_address_t` variable that will receive a trampoline/gateway to call the original function. Pass `LM_NULLPTR` if you don't need a trampoline.
+</ParamField>
+
+### Returns
+
+The amount of bytes occupied by the hook (aligned to the nearest instruction). Returns `0` on failure.
+
+### Example
+
+```c
+#include <libmem/libmem.h>
+
+void hk_take_damage(int amount)
+{
+  printf("hooked take_damage! no damage will be taken\n");
+  return;
+}
+
+int main()
+{
+	lm_module_t game_mod;
+	lm_address_t fn_take_damage;
+
+	LM_FindModule("game.dll", &game_mod);
+	printf("[*] Base address of 'game.dll': %p\n", game_mod.base);
+
+	fn_take_damage = LM_FindSymbolAddress(&game_mod, "take_damage");
+	printf("[*] Found 'take_damage' function: %p\n", fn_take_damage);
+
+	LM_HookCode(fn_take_damage, hk_take_damage, LM_NULLPTR);
+	printf("[*] 'take_damage' hooked, player will no longer receive damage\n");
+
+	return 0;
+}
+```
+
+---
+
+## LM_HookCodeEx
+
+Places a hook/detour onto the address `from` in a remote process, redirecting it to the address `to`. Optionally generates a trampoline to call the original function in the remote process.
+
+### Signature
+
+```c
+lm_size_t LM_HookCodeEx(
+    const lm_process_t *process,
+    lm_address_t        from,
+    lm_address_t        to,
+    lm_address_t       *trampoline_out
+);
+```
+
+### Parameters
+
+<ParamField path="process" type="const lm_process_t*" required>
+  The remote process to place the hook in.
+</ParamField>
+
+<ParamField path="from" type="lm_address_t" required>
+  The address where the hook will be placed in the remote process.
+</ParamField>
+
+<ParamField path="to" type="lm_address_t" required>
+  The address where the hook will jump to in the remote process.
+</ParamField>
+
+<ParamField path="trampoline_out" type="lm_address_t*">
+  Optional pointer to an `lm_address_t` variable that will receive a trampoline/gateway to call the original function in the remote process. Pass `LM_NULLPTR` if you don't need a trampoline.
+</ParamField>
+
+### Returns
+
+The amount of bytes occupied by the hook (aligned to the nearest instruction) in the remote process. Returns `0` on failure.

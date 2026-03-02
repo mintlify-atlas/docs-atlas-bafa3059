@@ -1,0 +1,159 @@
+---
+title: Installation
+description: Install libmem using package managers or download pre-built binaries
+---
+
+libmem can be installed through various package managers or used directly with CMake without installation.
+
+## Package Managers
+
+<CodeGroup>
+
+```bash vcpkg
+vcpkg install libmem
+```
+
+```bash pip
+pip install --upgrade libmem
+```
+
+```toml Cargo.toml
+[dependencies]
+libmem = "5"
+```
+
+</CodeGroup>
+
+<Warning>
+  For Rust and Python, libmem will automatically download and link the library if no installation is found. Manual installation is optional.
+</Warning>
+
+## vcpkg
+
+[![vcpkg](https://img.shields.io/vcpkg/v/libmem)](https://vcpkg.io/en/package/libmem)
+
+vcpkg is a cross-platform package manager from Microsoft that supports C/C++ libraries.
+
+<Steps>
+  <Step title="Install vcpkg">
+    Follow the instructions at [https://github.com/microsoft/vcpkg](https://github.com/microsoft/vcpkg)
+  </Step>
+  
+  <Step title="Install libmem">
+    ```bash
+    vcpkg install libmem
+    ```
+  </Step>
+</Steps>
+
+For detailed commands on installing different versions and more information, refer to [Microsoft's official instructions](https://learn.microsoft.com/en-us/vcpkg/get_started/overview).
+
+## Python
+
+<Warning>
+  Requires Python >= 3.6
+</Warning>
+
+### Install from PyPI
+
+The easiest way to install libmem for Python:
+
+```bash
+pip install --upgrade libmem
+```
+
+### Build from Source
+
+If you want to build the Python bindings yourself:
+
+```bash
+cd libmem-py
+python configure.py
+python setup.py install
+```
+
+<Info>
+  **Note:** If no libmem installation is found, the Python package will automatically fetch and link the library. You can use the `LIBDIR=<path>` environment variable to specify a custom libmem installation path.
+</Info>
+
+## Rust
+
+Add libmem to your `Cargo.toml`:
+
+```toml
+[dependencies]
+libmem = "5"
+```
+
+Then import it in your Rust code:
+
+```rust
+use libmem::*;
+```
+
+<Info>
+  **Note:** The `fetch` feature is enabled by default, which automatically downloads libmem if not found. If you disable this feature, you can specify a custom path using the `LIBMEM_DIR=<path>` environment variable.
+</Info>
+
+## CMake (without installing)
+
+You can use libmem in your CMake project without installing it system-wide by using `FetchContent`:
+
+```cmake
+include(FetchContent)
+
+# Download and set up libmem
+FetchContent_Declare(libmem-config URL "https://raw.githubusercontent.com/rdbo/libmem/config-v1/libmem-config.cmake" DOWNLOAD_NO_EXTRACT TRUE)
+FetchContent_MakeAvailable(libmem-config)
+set(CMAKE_PREFIX_PATH "${libmem-config_SOURCE_DIR}" "${CMAKE_PREFIX_PATH}")
+set(LIBMEM_DOWNLOAD_VERSION "5.1.4")
+
+# Find libmem package
+find_package(libmem CONFIG REQUIRED)
+```
+
+Link against libmem:
+
+```cmake
+# Link against libmem
+target_link_libraries(<YOUR_TARGET_NAME> PRIVATE libmem::libmem)
+```
+
+<Warning>
+  It might be necessary to link against other dependencies. See the [Dependencies](#dependencies) section for more information.
+</Warning>
+
+## Pre-built Binaries
+
+You can download pre-built binaries from the [GitHub Releases](https://github.com/rdbo/libmem/releases) page.
+
+<Note>
+  **Windows Users:** If you download a binary version, you only need to install the Windows SDK. Add `libmem/include` to your project's include directories and link against the downloaded binary.
+</Note>
+
+## Dependencies
+
+libmem has several dependencies that are bundled with the project:
+
+**All Platforms:**
+- capstone (included)
+- keystone (included)
+- LIEF (included)
+- libstdc++ (used in keystone, LIEF and LLVM)
+- libmath (used in keystone)
+
+**Windows:**
+- Windows SDK (user32.lib, psapi.lib, ntdll.lib, shell32.lib)
+
+**Linux/Android:**
+- libdl (`-ldl`)
+
+**FreeBSD:**
+- libdl (`-ldl`)
+- libkvm (`-lkvm`)
+- libprocstat (`-lprocstat`)
+- libelf (`-lelf`)
+
+## Next Steps
+
+After installing libmem, head to the [Quickstart](/quickstart) guide to write your first program with libmem.

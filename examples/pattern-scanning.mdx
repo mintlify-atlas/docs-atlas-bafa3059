@@ -1,0 +1,240 @@
+---
+title: Pattern Scanning
+description: Find specific byte patterns in process memory using signature scanning
+---
+
+Pattern scanning (also called signature scanning) is essential for locating functions and data structures in memory when addresses change between versions or sessions.
+
+## Signature Scanning
+
+Signature scanning allows you to search for byte patterns with wildcards, making it perfect for finding functions even after game updates.
+
+### Godmode Example
+
+This real-world example from the README demonstrates scanning for a function signature and patching it to implement godmode in a game:
+
+<CodeGroup>
+```rust Rust
+use libmem::*;
+
+fn godmode() -> Option<()> {
+    let game_process = find_process("game_linux64")?;
+    let client_module = find_module_ex(&game_process, "libclient.so")?;
+
+    let fn_update_health = sig_scan_ex(
+        &game_process,
+        "55 48 89 E5 66 B8 ?? ?? 48 8B 5D FC",
+        client_module.base,
+        client_module.size,
+    )?;
+    println!(
+        "[*] Signature scan result for 'update_health' function: {}",
+        fn_update_health
+    );
+
+    let shellcode = assemble_ex("mov rbx, 1337; mov [rdi], rbx; ret", Arch::X64, 0)?;
+    write_memory_ex(&game_process, fn_update_health + 8, &shellcode.as_slice())?;
+    println!("[*] Patched 'update_health' function to always set health to 1337!");
+
+    Some(())
+}
+
+fn main() {
+    godmode();
+}
+```
+
+```c C/C++
+#include <libmem/libmem.h>
+
+int main()
+{
+    lm_process_t game_process;
+    lm_module_t client_module;
+    lm_address_t fn_update_health;
+    lm_byte_t *shellcode;
+    lm_size_t shellcode_size;
+
+    // Find the target process and module
+    if (!LM_FindProcess("game_linux64", &game_process)) {
+        printf("Failed to find process\n");
+        return 1;
+    }
+
+    if (!LM_FindModuleEx(&game_process, "libclient.so", &client_module)) {
+        printf("Failed to find module\n");
+        return 1;
+    }
+
+    // Scan for the update_health function signature
+    fn_update_health = LM_SigScanEx(
+        &game_process,
+        "55 48 89 E5 66 B8 ?? ?? 48 8B 5D FC",
+        client_module.base,
+        client_module.size
+    );
+
+    if (fn_update_health == LM_ADDRESS_BAD) {
+        printf("Failed to find update_health function\n");
+        return 1;
+    }
+
+    printf("[*] Signature scan result for 'update_health' function: %p\n", (void*)fn_update_health);
+
+    // Assemble patch code
+    shellcode_size = LM_AssembleEx(
+        "mov rbx, 1337; mov [rdi], rbx; ret",
+        LM_ARCH_X64,
+        0,
+        &shellcode
+    );
+
+    // Apply the patch
+    LM_WriteMemoryEx(&game_process, fn_update_health + 8, shellcode, shellcode_size);
+    printf("[*] Patched 'update_health' function to always set health to 1337!\n");
+
+    LM_FreePayload(shellcode);
+    return 0;
+}
+```
+
+```python Python
+from libmem import *
+
+def godmode():
+    game_process = find_process("game_linux64")
+    if not game_process:
+        print("Failed to find process")
+        return
+
+    client_module = find_module_ex(game_process, "libclient.so")
+    if not client_module:
+        print("Failed to find module")
+        return
+
+    # Scan for the update_health function signature
+    fn_update_health = sig_scan_ex(
+        game_process,
+        "55 48 89 E5 66 B8 ?? ?? 48 8B 5D FC",
+        client_module.base,
+        client_module.size
+    )
+
+    if fn_update_health is None:
+        print("Failed to find update_health function")
+        return
+
+    print(f"[*] Signature scan result for 'update_health' function: {hex(fn_update_health)}")
+
+    # Assemble and apply the patch
+    shellcode = assemble_ex("mov rbx, 1337; mov [rdi], rbx; ret", Arch.X64, 0)
+    write_memory_ex(game_process, fn_update_health + 8, shellcode)
+    print("[*] Patched 'update_health' function to always set health to 1337!")
+
+if __name__ == "__main__":
+    godmode()
+```
+</CodeGroup>
+
+## How It Works
+
+<Steps>
+  <Step title="Find the Target Process">
+    Use `find_process` to locate the running game process by name.
+  </Step>
+  
+  <Step title="Locate the Module">
+    Find the specific module (DLL/SO) that contains the function you're looking for using `find_module_ex`.
+  </Step>
+  
+  <Step title="Scan for the Signature">
+    Use `sig_scan_ex` with a byte pattern. The `??` wildcards match any byte, allowing the pattern to work even if some bytes vary between versions.
+  </Step>
+  
+  <Step title="Patch the Function">
+    Once found, assemble custom shellcode and write it to the function, effectively modifying its behavior.
+  </Step>
+</Steps>
+
+## Pattern Syntax
+
+### Signature Format
+
+Signatures use hexadecimal bytes separated by spaces:
+- `55 48 89 E5` - Exact bytes that must match
+- `??` - Wildcard that matches any byte
+- Example: `"DE AD ?? ?? 13 37"` matches `DE AD` followed by any 2 bytes, then `13 37`
+
+### Data Scanning
+
+For scanning exact data without wildcards, use `LM_DataScan` or `LM_DataScanEx`:
+
+<CodeGroup>
+```c C/C++
+lm_byte_t pattern[] = {0xDE, 0xAD, 0xBE, 0xEF};
+lm_address_t result = LM_DataScan(pattern, sizeof(pattern), start_addr, scan_size);
+```
+
+```rust Rust
+let pattern = vec![0xDE, 0xAD, 0xBE, 0xEF];
+let result = data_scan(&pattern, start_addr, scan_size);
+```
+
+```python Python
+pattern = bytearray([0xDE, 0xAD, 0xBE, 0xEF])
+result = data_scan(pattern, start_addr, scan_size)
+```
+</CodeGroup>
+
+## Pattern Scanning vs Mask Scanning
+
+Libmem also supports pattern scanning with explicit masks using `LM_PatternScan`:
+
+<CodeGroup>
+```c C/C++
+lm_byte_t pattern[] = {0xDE, 0xAD, 0x00, 0x00, 0x13, 0x37};
+lm_string_t mask = "xx??xx";
+lm_address_t result = LM_PatternScan(pattern, mask, start_addr, scan_size);
+```
+
+```rust Rust
+let pattern = vec![0xDE, 0xAD, 0x00, 0x00, 0x13, 0x37];
+let mask = "xx??xx";
+let result = pattern_scan(&pattern, mask, start_addr, scan_size);
+```
+</CodeGroup>
+
+In the mask:
+- `x` means the byte must match exactly
+- `?` means the byte is a wildcard
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Make Signatures Unique">
+    Choose signatures that are unlikely to appear elsewhere in memory. Include enough context bytes while keeping wildcards minimal.
+  </Accordion>
+  
+  <Accordion title="Scan Within Module Boundaries">
+    Always scan within a specific module's range rather than the entire process to improve performance and avoid false positives.
+  </Accordion>
+  
+  <Accordion title="Handle Scan Failures">
+    Always check if the scan returned `LM_ADDRESS_BAD` (C) or `None` (Rust/Python) before using the result.
+  </Accordion>
+  
+  <Accordion title="Update Signatures After Game Updates">
+    Game updates may change function code. Keep signatures flexible with strategic wildcards or be prepared to update them.
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Hook Functions" icon="anchor" href="/examples/hook-game-function">
+    Learn to hook and intercept function calls
+  </Card>
+  <Card title="Memory API" icon="book" href="/api-reference/memory">
+    Explore all memory scanning functions
+  </Card>
+</CardGroup>

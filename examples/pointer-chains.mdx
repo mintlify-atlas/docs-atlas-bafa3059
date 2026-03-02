@@ -1,0 +1,412 @@
+---
+title: Pointer Chains
+description: Resolve multi-level pointer chains to access dynamic game data
+---
+
+Pointer chains (also called deep pointers or pointer paths) are essential for accessing dynamic game data that moves in memory. They follow a series of offsets from a base address to reach the final value.
+
+## Understanding Pointer Chains
+
+In games, data structures like player health are often allocated dynamically and move around in memory. However, you can reach them by following a chain of pointers from a static base address.
+
+### Anatomy of a Pointer Chain
+
+```
+Base Address (static)
+  |
+  +--[offset 0xA0]--> Pointer 1
+                       |
+                       +--[offset 0x04]--> Pointer 2
+                                            |
+                                            +--[offset 0x10]--> Pointer 3
+                                                                 |
+                                                                 +--[offset 0xF0]--> Player Health
+```
+
+## Deep Pointer Example
+
+This real-world example from the README demonstrates using a pointer chain from Cheat Engine to access player health:
+
+<CodeGroup>
+```python Python
+from libmem import *
+import time
+
+process = find_process("game.exe")
+game_mod = find_module_ex(process, process.name)
+
+# Resolve a Cheat Engine pointer scan
+health_pointer = deep_pointer_ex(process, game_mod.base + 0xdeadbeef, [0xA0, 0x04, 0x10, 0xF0, 0x0])
+
+# Set player health to 1337 forever
+while True:
+    write_memory_ex(process, health_pointer, bytearray(int(1337).to_bytes(4)))
+    time.sleep(0.2)
+```
+
+```c C/C++
+#include <libmem/libmem.h>
+#include <stdio.h>
+
+#ifdef _WIN32
+#include <windows.h>
+#define SLEEP(ms) Sleep(ms)
+#else
+#include <unistd.h>
+#define SLEEP(ms) usleep((ms) * 1000)
+#endif
+
+int main()
+{
+    lm_process_t process;
+    lm_module_t game_mod;
+    lm_address_t health_pointer;
+    lm_address_t offsets[] = {0xA0, 0x04, 0x10, 0xF0, 0x0};
+    int health_value = 1337;
+
+    // Find process and module
+    if (!LM_FindProcess("game.exe", &process)) {
+        printf("Failed to find process\n");
+        return 1;
+    }
+
+    if (!LM_FindModuleEx(&process, process.name, &game_mod)) {
+        printf("Failed to find module\n");
+        return 1;
+    }
+
+    // Resolve pointer chain
+    health_pointer = LM_DeepPointerEx(
+        &process,
+        game_mod.base + 0xdeadbeef,
+        offsets,
+        LM_ARRLEN(offsets)
+    );
+
+    if (health_pointer == LM_ADDRESS_BAD) {
+        printf("Failed to resolve pointer chain\n");
+        return 1;
+    }
+
+    printf("Health pointer resolved to: %p\n", (void*)health_pointer);
+
+    // Set player health to 1337 forever
+    while (1) {
+        LM_WriteMemoryEx(&process, health_pointer, (lm_byte_t*)&health_value, sizeof(health_value));
+        SLEEP(200);
+    }
+
+    return 0;
+}
+```
+
+```rust Rust
+use libmem::*;
+use std::thread;
+use std::time::Duration;
+
+fn main() -> Option<()> {
+    let process = find_process("game.exe")?;
+    let game_mod = find_module_ex(&process, &process.name)?;
+
+    // Resolve a Cheat Engine pointer scan
+    let offsets = vec![0xA0, 0x04, 0x10, 0xF0, 0x0];
+    let health_pointer = deep_pointer_ex(
+        &process,
+        game_mod.base + 0xdeadbeef,
+        &offsets
+    )?;
+
+    println!("Health pointer resolved to: {:x}", health_pointer);
+
+    // Set player health to 1337 forever
+    let health_value: i32 = 1337;
+    loop {
+        let bytes = health_value.to_le_bytes();
+        write_memory_ex(&process, health_pointer, &bytes)?;
+        thread::sleep(Duration::from_millis(200));
+    }
+}
+```
+
+```cpp C++
+#include <libmem/libmem.hpp>
+#include <iostream>
+#include <thread>
+#include <chrono>
+
+using namespace libmem;
+
+int main()
+{
+    auto process = FindProcess("game.exe").value();
+    auto game_mod = FindModuleEx(process, process.name).value();
+
+    // Resolve a Cheat Engine pointer scan
+    std::vector<Address> offsets = {0xA0, 0x04, 0x10, 0xF0, 0x0};
+    auto health_pointer = DeepPointerEx(
+        process,
+        game_mod.base + 0xdeadbeef,
+        offsets
+    ).value();
+
+    std::cout << "Health pointer resolved to: " << std::hex << health_pointer << std::endl;
+
+    // Set player health to 1337 forever
+    int health_value = 1337;
+    while (true) {
+        WriteMemoryEx(process, health_pointer, 
+                     reinterpret_cast<const uint8_t*>(&health_value), 
+                     sizeof(health_value));
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    }
+
+    return 0;
+}
+```
+</CodeGroup>
+
+## How It Works
+
+<Steps>
+  <Step title="Find the Base Address">
+    Start with a static address - typically a module base plus an offset. This base address never changes between game restarts.
+  </Step>
+  
+  <Step title="Define the Offset Chain">
+    Create an array of offsets that describe the path through memory. These offsets are found using tools like Cheat Engine.
+  </Step>
+  
+  <Step title="Resolve the Chain">
+    Call `deep_pointer_ex` to follow each pointer in the chain, dereferencing and adding offsets until reaching the final address.
+  </Step>
+  
+  <Step title="Access the Data">
+    Use the resolved address to read or write the actual data value.
+  </Step>
+</Steps>
+
+## Internal Process Pointer Chains
+
+For the current process, use the non-`Ex` variant:
+
+<CodeGroup>
+```c C/C++
+#include <libmem/libmem.h>
+
+int main()
+{
+    lm_module_t my_module;
+    lm_address_t offsets[] = {0x20, 0x10, 0x08};
+    lm_address_t final_ptr;
+
+    LM_GetModule(&my_module);
+    
+    final_ptr = LM_DeepPointer(
+        my_module.base + 0x12345,
+        offsets,
+        LM_ARRLEN(offsets)
+    );
+
+    if (final_ptr != LM_ADDRESS_BAD) {
+        int value;
+        LM_ReadMemory(final_ptr, (lm_byte_t*)&value, sizeof(value));
+        printf("Value: %d\n", value);
+    }
+
+    return 0;
+}
+```
+
+```rust Rust
+use libmem::*;
+
+fn main() -> Option<()> {
+    let my_module = get_module()?;
+    let offsets = vec![0x20, 0x10, 0x08];
+    
+    let final_ptr = deep_pointer(
+        my_module.base + 0x12345,
+        &offsets
+    )?;
+
+    let mut value = [0u8; 4];
+    read_memory(final_ptr, &mut value);
+    let int_value = i32::from_le_bytes(value);
+    println!("Value: {}", int_value);
+
+    Some(())
+}
+```
+
+```python Python
+from libmem import *
+
+my_module = get_module()
+offsets = [0x20, 0x10, 0x08]
+
+final_ptr = deep_pointer(
+    my_module.base + 0x12345,
+    offsets
+)
+
+if final_ptr:
+    value = bytearray(4)
+    read_memory(final_ptr, value)
+    int_value = int.from_bytes(value, byteorder='little')
+    print(f"Value: {int_value}")
+```
+</CodeGroup>
+
+## Finding Pointer Chains
+
+Pointer chains are typically discovered using memory scanning tools:
+
+### Using Cheat Engine
+
+<Steps>
+  <Step title="Find the Value">
+    Use Cheat Engine's value scanning to locate the address of your target data (e.g., player health).
+  </Step>
+  
+  <Step title="Perform Pointer Scan">
+    Right-click the address and select "Pointer scan for this address". This searches for pointer chains that lead to it.
+  </Step>
+  
+  <Step title="Filter Results">
+    Restart the game and rescan to filter out invalid pointer paths. Valid paths will still point to the same data.
+  </Step>
+  
+  <Step title="Extract the Chain">
+    The shortest, most reliable pointer path becomes your offset chain. The first address is typically `module.base + offset`.
+  </Step>
+</Steps>
+
+## Common Patterns
+
+### Single-Level Pointer
+
+```c
+// Base -> Value
+lm_address_t offsets[] = {0x0};
+lm_address_t value_ptr = LM_DeepPointerEx(&process, base_addr, offsets, 1);
+```
+
+### Two-Level Pointer
+
+```c
+// Base -> Pointer -> Value
+lm_address_t offsets[] = {0x10, 0x0};
+lm_address_t value_ptr = LM_DeepPointerEx(&process, base_addr, offsets, 2);
+```
+
+### Multi-Level Pointer Chain
+
+```c
+// Base -> P1 -> P2 -> P3 -> Value
+lm_address_t offsets[] = {0xA0, 0x04, 0x10, 0x0};
+lm_address_t value_ptr = LM_DeepPointerEx(&process, base_addr, offsets, 4);
+```
+
+## Error Handling
+
+Always check if pointer resolution succeeded:
+
+<CodeGroup>
+```c C/C++
+lm_address_t result = LM_DeepPointerEx(&process, base, offsets, noffsets);
+
+if (result == LM_ADDRESS_BAD) {
+    printf("Failed to resolve pointer chain\n");
+    // Handle error - pointer chain may be invalid or game state changed
+    return 1;
+}
+```
+
+```rust Rust
+match deep_pointer_ex(&process, base, &offsets) {
+    Some(ptr) => {
+        println!("Resolved to: {:x}", ptr);
+    }
+    None => {
+        eprintln!("Failed to resolve pointer chain");
+        // Handle error
+    }
+}
+```
+
+```python Python
+result = deep_pointer_ex(process, base, offsets)
+
+if result is None:
+    print("Failed to resolve pointer chain")
+    # Handle error - pointer chain may be invalid
+    return
+```
+</CodeGroup>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Validate Pointer Chains">
+    Always check if `deep_pointer_ex` returns a valid address. Invalid chains return `LM_ADDRESS_BAD` or `None`.
+  </Accordion>
+  
+  <Accordion title="Use the Shortest Chain">
+    Shorter pointer chains are more reliable and less likely to break when the game updates.
+  </Accordion>
+  
+  <Accordion title="Cache Base Addresses">
+    Module base addresses don't change during runtime, so cache them instead of looking them up repeatedly.
+  </Accordion>
+  
+  <Accordion title="Re-resolve After Game Updates">
+    Game updates may change offsets. Be prepared to re-scan pointer chains after patches.
+  </Accordion>
+  
+  <Accordion title="Handle Dynamic Structures">
+    Some data may be NULL or invalid depending on game state (e.g., no player loaded). Add validation.
+  </Accordion>
+</AccordionGroup>
+
+## Common Use Cases
+
+- **Player Stats**: Health, mana, stamina, experience points
+- **Inventory Items**: Item counts, equipment stats
+- **Game State**: Level ID, checkpoint data, quest flags
+- **Entity Data**: Enemy health, positions, AI states
+- **Resource Pools**: Ammunition, currency, crafting materials
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Pointer Chain Returns NULL">
+    - Verify the base address is correct (module.base + offset)
+    - Check if the game state has changed (e.g., not in a level yet)
+    - Ensure offsets are in the correct order
+    - Re-scan pointer chain with Cheat Engine
+  </Accordion>
+  
+  <Accordion title="Value Doesn't Update">
+    - Pointer chain may be stale after a game update
+    - Game might be using a different instance of the data
+    - Try refreshing the pointer scan
+  </Accordion>
+  
+  <Accordion title="Game Crashes">
+    - Pointer chain may be invalid, leading to bad memory access
+    - Add validation before reading/writing
+    - Ensure offsets are correct size for the target architecture
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Memory Operations" icon="memory" href="/examples/basic-memory-manipulation">
+    Learn basic read/write operations
+  </Card>
+  <Card title="Memory API" icon="book" href="/api-reference/memory">
+    Explore all memory functions
+  </Card>
+</CardGroup>

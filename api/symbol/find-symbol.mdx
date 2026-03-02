@@ -1,0 +1,159 @@
+---
+title: 'LM_FindSymbolAddress'
+description: 'Find the address of a symbol within a module'
+---
+
+## LM_FindSymbolAddress
+
+Finds the address of a symbol within a module.
+
+### Signature
+
+```c
+LM_API lm_address_t LM_CALL
+LM_FindSymbolAddress(const lm_module_t *module,
+                     lm_string_t        symbol_name);
+```
+
+### Parameters
+
+<ParamField path="module" type="const lm_module_t*" required>
+  The module where the symbol will be looked up from.
+</ParamField>
+
+<ParamField path="symbol_name" type="lm_string_t" required>
+  The name of the symbol to look up.
+</ParamField>
+
+### Return Value
+
+Returns the address of the symbol, or `LM_ADDRESS_BAD` if it fails.
+
+### Description
+
+This function searches for a symbol by name within a specified module and returns its memory address. Symbols can represent functions, variables, or other exported identifiers within a module.
+
+### Example
+
+```c
+#include <libmem/libmem.h>
+#include <stdio.h>
+
+void hk_take_damage(int amount)
+{
+    printf("hooked take_damage! no damage will be taken\n");
+    return;
+}
+
+int main()
+{
+    lm_module_t game_mod;
+    lm_address_t fn_take_damage;
+
+    LM_FindModule("game.dll", &game_mod);
+    printf("[*] Base address of 'game.dll': %p\n", (void *)game_mod.base);
+
+    fn_take_damage = LM_FindSymbolAddress(&game_mod, "take_damage");
+    printf("[*] Found 'take_damage' function: %p\n", (void *)fn_take_damage);
+
+    LM_HookCode(fn_take_damage, (lm_address_t)hk_take_damage, LM_NULLPTR);
+    printf("[*] 'take_damage' hooked, player will no longer receive damage\n");
+
+    return 0;
+}
+```
+
+### Common Use Cases
+
+- Finding function addresses for hooking
+- Locating exported functions in DLLs or shared libraries
+- Getting addresses of global variables
+- Resolving API entry points
+
+### Error Handling
+
+```c
+lm_address_t symbol_addr = LM_FindSymbolAddress(&module, "my_function");
+if (symbol_addr == LM_ADDRESS_BAD) {
+    printf("Failed to find symbol\n");
+    return 1;
+}
+```
+
+---
+
+## LM_FindSymbolAddressDemangled
+
+Finds the address of a demangled symbol within a module.
+
+### Signature
+
+```c
+LM_API lm_address_t LM_CALL
+LM_FindSymbolAddressDemangled(const lm_module_t *module,
+                              lm_string_t        symbol_name);
+```
+
+### Parameters
+
+<ParamField path="module" type="const lm_module_t*" required>
+  The module where the symbol will be looked up from.
+</ParamField>
+
+<ParamField path="symbol_name" type="lm_string_t" required>
+  The demangled name of the symbol to look up (e.g., `"MyClass::myMethod()"`).
+</ParamField>
+
+### Return Value
+
+Returns the address of the symbol, or `LM_ADDRESS_BAD` if it fails.
+
+### Description
+
+This function searches for a symbol using its demangled (human-readable) name and returns its memory address. This is particularly useful when working with C++ binaries where you want to search using the readable function signature instead of the mangled name.
+
+### Example
+
+```c
+#include <libmem/libmem.h>
+#include <stdio.h>
+
+int main()
+{
+    lm_module_t cpp_lib;
+    lm_address_t method_addr;
+
+    // Find a C++ library
+    if (!LM_FindModule("game_engine.so", &cpp_lib)) {
+        printf("Failed to find module\n");
+        return 1;
+    }
+
+    // Find a C++ method using demangled name
+    method_addr = LM_FindSymbolAddressDemangled(&cpp_lib, "Player::takeDamage(int)");
+    
+    if (method_addr == LM_ADDRESS_BAD) {
+        printf("Failed to find symbol\n");
+        return 1;
+    }
+
+    printf("[*] Found 'Player::takeDamage(int)' at: %p\n", (void *)method_addr);
+
+    return 0;
+}
+```
+
+### Notes
+
+- This function is specifically designed for C++ symbols where names are mangled by the compiler.
+- You can provide the human-readable function signature (e.g., `"ClassName::methodName(int, char*)"`) instead of the mangled name.
+- The function internally demangles all symbols in the module to find a match.
+- This may be slower than `LM_FindSymbolAddress` if you already know the mangled name.
+- If the symbol cannot be found or demangled, `LM_ADDRESS_BAD` is returned.
+
+### Comparison with LM_FindSymbolAddress
+
+| Function | Input Name Format | Use Case |
+|----------|------------------|----------|
+| `LM_FindSymbolAddress` | Mangled name (e.g., `_ZN6Player10takeDamageEi`) | When you know the exact mangled symbol name |
+| `LM_FindSymbolAddressDemangled` | Demangled name (e.g., `Player::takeDamage(int)`) | When you want to use readable C++ signatures |

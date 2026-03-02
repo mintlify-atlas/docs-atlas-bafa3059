@@ -1,0 +1,249 @@
+---
+title: Processes and Threads
+description: Understanding process and thread structures in libmem
+---
+
+libmem provides structures and APIs to work with processes and threads on your system. These fundamental concepts allow you to enumerate, identify, and interact with running programs.
+
+## Process Structure
+
+The `lm_process_t` structure contains information about a process.
+
+### Definition
+
+```c
+typedef struct lm_process_t {
+    lm_pid_t  pid;         // Process ID
+    lm_pid_t  ppid;        // Parent Process ID
+    lm_arch_t arch;        // Architecture (e.g., LM_ARCH_X64)
+    lm_size_t bits;        // Process bits (32 or 64)
+    lm_time_t start_time;  // Process start timestamp (ms since boot)
+    lm_char_t path[LM_PATH_MAX];  // Full path to the executable
+    lm_char_t name[LM_PATH_MAX];  // Process name (e.g., "game.exe")
+} lm_process_t;
+```
+
+### Field Descriptions
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `pid` | `lm_pid_t` | The process identifier, unique to the running process |
+| `ppid` | `lm_pid_t` | The parent process identifier (the process that spawned this one) |
+| `arch` | `lm_arch_t` | The architecture type (see [Architecture Support](/concepts/architecture-support)) |
+| `bits` | `lm_size_t` | Process architecture in bits (typically 32 or 64) |
+| `start_time` | `lm_time_t` | Process start timestamp in milliseconds since the last system boot |
+| `path` | `lm_char_t[]` | Full filesystem path to the process executable |
+| `name` | `lm_char_t[]` | The process name, typically the executable filename |
+
+<Info>
+The `start_time` field is useful for detecting process restarts. Even if a process has the same PID, a different start time indicates it's a new instance.
+</Info>
+
+## Thread Structure
+
+The `lm_thread_t` structure contains information about a thread.
+
+### Definition
+
+```c
+typedef struct lm_thread_t {
+    lm_tid_t tid;       // Thread ID
+    lm_pid_t owner_pid; // Owner Process ID
+} lm_thread_t;
+```
+
+### Field Descriptions
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `tid` | `lm_tid_t` | The thread identifier, unique to the thread within the system |
+| `owner_pid` | `lm_pid_t` | The process ID that owns this thread |
+
+<Note>
+Threads are units of execution within a process. A single process can have multiple threads running concurrently.
+</Note>
+
+## Working with Processes
+
+### Enumerating Processes
+
+```c
+lm_bool_t callback(lm_process_t *process, lm_void_t *arg)
+{
+    printf("Process: %s (PID: %d)\n", process->name, process->pid);
+    return LM_TRUE; // Continue enumeration
+}
+
+int main()
+{
+    LM_EnumProcesses(callback, NULL);
+    return 0;
+}
+```
+
+### Getting Current Process
+
+```c
+lm_process_t current_process;
+
+if (LM_GetProcess(&current_process)) {
+    printf("Current PID: %d\n", current_process.pid);
+    printf("Current Name: %s\n", current_process.name);
+    printf("Current Bits: %zu\n", current_process.bits);
+}
+```
+
+### Finding a Process by Name
+
+```c
+lm_process_t target_process;
+
+if (LM_FindProcess("game.exe", &target_process)) {
+    printf("Found process: %s\n", target_process.name);
+    printf("PID: %d\n", target_process.pid);
+    printf("Path: %s\n", target_process.path);
+}
+```
+
+### Checking if a Process is Alive
+
+```c
+lm_process_t process;
+LM_FindProcess("game.exe", &process);
+
+if (LM_IsProcessAlive(&process)) {
+    printf("Process is still running\n");
+} else {
+    printf("Process has terminated\n");
+}
+```
+
+<Info>
+`LM_IsProcessAlive()` checks both the PID and start time to ensure you're checking the correct process instance.
+</Info>
+
+## Working with Threads
+
+### Enumerating Threads in Current Process
+
+```c
+lm_bool_t thread_callback(lm_thread_t *thread, lm_void_t *arg)
+{
+    printf("Thread ID: %d (Owner PID: %d)\n", thread->tid, thread->owner_pid);
+    return LM_TRUE; // Continue enumeration
+}
+
+int main()
+{
+    LM_EnumThreads(thread_callback, NULL);
+    return 0;
+}
+```
+
+### Enumerating Threads in Another Process
+
+```c
+lm_process_t target_process;
+LM_FindProcess("game.exe", &target_process);
+
+lm_bool_t thread_callback(lm_thread_t *thread, lm_void_t *arg)
+{
+    printf("Thread ID: %d\n", thread->tid);
+    return LM_TRUE;
+}
+
+LM_EnumThreadsEx(&target_process, thread_callback, NULL);
+```
+
+### Getting Current Thread
+
+```c
+lm_thread_t current_thread;
+
+if (LM_GetThread(&current_thread)) {
+    printf("Current Thread ID: %d\n", current_thread.tid);
+    printf("Owner Process ID: %d\n", current_thread.owner_pid);
+}
+```
+
+### Getting Process from Thread
+
+```c
+lm_thread_t thread;
+lm_process_t process;
+
+LM_GetThread(&thread);
+
+if (LM_GetThreadProcess(&thread, &process)) {
+    printf("Thread %d belongs to process %s (PID: %d)\n",
+           thread.tid, process.name, process.pid);
+}
+```
+
+## Process and Thread APIs
+
+### Process APIs
+
+- `LM_EnumProcesses()` - Enumerate all processes on the system
+- `LM_GetProcess()` - Get information about the current process
+- `LM_GetProcessEx()` - Get information about a process by PID
+- `LM_FindProcess()` - Find a process by name
+- `LM_IsProcessAlive()` - Check if a process is still running
+- `LM_GetBits()` - Get the current process bits (32 or 64)
+- `LM_GetSystemBits()` - Get the system architecture bits
+- `LM_GetCommandLine()` - Get the command line arguments of a process
+- `LM_FreeCommandLine()` - Free command line buffer
+
+### Thread APIs
+
+- `LM_EnumThreads()` - Enumerate threads in the current process
+- `LM_EnumThreadsEx()` - Enumerate threads in a target process
+- `LM_GetThread()` - Get information about the current thread
+- `LM_GetThreadEx()` - Get information about a thread in a target process
+- `LM_GetThreadProcess()` - Get the process that owns a thread
+
+## Common Use Cases
+
+### Monitoring a Specific Process
+
+```c
+lm_process_t target;
+
+if (!LM_FindProcess("target.exe", &target)) {
+    printf("Process not found\n");
+    return 1;
+}
+
+printf("Monitoring: %s\n", target.name);
+printf("PID: %d\n", target.pid);
+printf("Architecture: %zu-bit\n", target.bits);
+printf("Path: %s\n", target.path);
+
+// Periodically check if it's still alive
+while (LM_IsProcessAlive(&target)) {
+    // Do work...
+    sleep(1);
+}
+
+printf("Process has terminated\n");
+```
+
+### Attaching to a Running Game
+
+```c
+lm_process_t game;
+lm_module_t game_module;
+
+// Wait for the game to start
+while (!LM_FindProcess("game.exe", &game)) {
+    printf("Waiting for game...\n");
+    sleep(1);
+}
+
+printf("Game found! PID: %d\n", game.pid);
+
+// Find the main module
+if (LM_FindModuleEx(&game, "game.exe", &game_module)) {
+    printf("Main module base: %p\n", (void*)game_module.base);
+}
+```

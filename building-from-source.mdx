@@ -1,0 +1,369 @@
+---
+title: Building from Source
+description: Build and install libmem from source on Windows, Linux, and FreeBSD
+---
+
+This guide covers building libmem from source on all supported platforms.
+
+## Prerequisites
+
+<Tabs>
+  <Tab title="Windows">
+    <Steps>
+      <Step title="Install Windows SDK">
+        Download and install the Windows SDK for your version:
+        - [Windows 7 SDK](https://www.microsoft.com/en-us/download/details.aspx?id=8279)
+        - [Windows 10/11 SDK](https://developer.microsoft.com/en-us/windows/downloads/windows-sdk/)
+      </Step>
+
+      <Step title="Install Python 3">
+        Download and install Python 3:
+        - [Python 3](https://python.org/downloads) (check the option to add Python to PATH)
+        - For Windows 7, use [Python 3.8.9](https://python.org/downloads/release/python-389)
+      </Step>
+
+      <Step title="Install Visual Studio">
+        Install [Visual Studio](https://visualstudio.microsoft.com/) 2022 or newer with:
+        - C++ support
+        - CMake tools
+        
+        <Info>
+          You can install only the Visual Studio Build Tools if you don't want the full IDE.
+        </Info>
+      </Step>
+
+      <Step title="Install Git Bash">
+        Download and install [Git Bash](https://git-scm.com/downloads)
+      </Step>
+
+      <Step title="Add to PATH (Optional)">
+        Run a Visual Studio Developer Command Prompt (or x64 Native Tools Command Prompt for VS 2022 for 64-bit) as Administrator and run:
+
+        ```batch
+        setx PATH "%PATH%;%ProgramFiles%\libmem\include;%ProgramFiles%\libmem\lib"
+        ```
+
+        <Warning>
+          Watch for your PATH size limit when adding directories!
+        </Warning>
+      </Step>
+    </Steps>
+  </Tab>
+
+  <Tab title="Linux">
+    <Note>
+      The following commands are for Debian/Ubuntu based distributions. Make sure to find the appropriate commands for your Linux distribution.
+    </Note>
+
+    <Steps>
+      <Step title="Open a terminal">
+        Open your preferred terminal emulator.
+      </Step>
+
+      <Step title="Install build dependencies">
+        Install GCC, G++, Git, CMake, Make, Python 3, and the Linux headers:
+
+        ```bash
+        sudo apt install gcc g++ git cmake make python3 linux-headers
+        ```
+
+        <Info>
+          For other distributions:
+          - **Arch Linux:** `sudo pacman -S gcc git cmake make python3 linux-headers`
+          - **Fedora:** `sudo dnf install gcc gcc-c++ git cmake make python3 kernel-devel`
+          - **openSUSE:** `sudo zypper install gcc gcc-c++ git cmake make python3 kernel-devel`
+        </Info>
+      </Step>
+    </Steps>
+  </Tab>
+
+  <Tab title="FreeBSD">
+    <Steps>
+      <Step title="Mount procfs">
+        Add a mountpoint for the `procfs` filesystem in your `/etc/fstab` by appending:
+
+        ```bash
+        proc        /proc       procfs  rw  0   0
+        ```
+      </Step>
+
+      <Step title="Mount procfs manually">
+        Manually mount the `procfs` (run as root). This is only necessary if you don't reboot:
+
+        ```bash
+        mount -t procfs proc /proc
+        ```
+
+        <Info>
+          After rebooting, procfs will be automatically mounted because of the `/etc/fstab` entry.
+        </Info>
+      </Step>
+
+      <Step title="Install build dependencies">
+        Install Git, CMake, and Python3 as root:
+
+        ```bash
+        pkg install git cmake python3
+        ```
+
+        <Note>
+          clang, clang++, and make should already be installed on FreeBSD.
+        </Note>
+      </Step>
+    </Steps>
+  </Tab>
+</Tabs>
+
+## Build and Install
+
+<Warning>
+  **Windows:** Run the following commands in Git Bash.
+  
+  **Linux/FreeBSD:** Run the following commands in a terminal.
+</Warning>
+
+<Steps>
+  <Step title="Clone the repository">
+    Clone the libmem repository with all submodules:
+
+    ```bash
+    git clone --recursive --depth 1 https://github.com/rdbo/libmem
+    ```
+
+    <Info>
+      The `--recursive` flag ensures all submodules (capstone, keystone, LIEF, etc.) are cloned.
+      The `--depth 1` flag creates a shallow clone to save bandwidth.
+    </Info>
+  </Step>
+
+  <Step title="Navigate to the repository">
+    ```bash
+    cd libmem
+    ```
+  </Step>
+
+  <Step title="Generate the CMake cache">
+    Create a build directory and generate the build files:
+
+    ```bash
+    mkdir build
+    cd build
+    cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS=-fpermissive -DCMAKE_EXPORT_COMPILE_COMMANDS=1
+    ```
+
+    **CMake Options:**
+    - `CMAKE_BUILD_TYPE=Release` - Build in release mode with optimizations
+    - `CMAKE_CXX_FLAGS=-fpermissive` - Allow permissive C++ compilation
+    - `CMAKE_EXPORT_COMPILE_COMMANDS=1` - Export compile commands for IDE support
+
+    <Accordion title="Additional CMake Options">
+      You can customize the build with these options:
+
+      ```bash
+      # Build tests
+      cmake .. -DLIBMEM_BUILD_TESTS=ON
+
+      # Build static library instead of shared
+      cmake .. -DLIBMEM_BUILD_STATIC=ON
+
+      # Force a specific architecture
+      cmake .. -DLIBMEM_ARCH=x86_64
+
+      # Enable deep testing features
+      cmake .. -DLIBMEM_DEEP_TESTS=ON
+      ```
+    </Accordion>
+  </Step>
+
+  <Step title="Compile libmem">
+    <Tabs>
+      <Tab title="Windows">
+        ```batch
+        nmake
+        ```
+      </Tab>
+
+      <Tab title="Linux/FreeBSD">
+        ```bash
+        make -j 4
+        ```
+
+        <Info>
+          The `-j 4` flag compiles using 4 parallel jobs. Adjust based on your CPU core count for faster compilation.
+        </Info>
+      </Tab>
+    </Tabs>
+  </Step>
+
+  <Step title="Install libmem">
+    <Warning>
+      Run as Administrator (Windows) or root (Linux/FreeBSD)
+    </Warning>
+
+    <Tabs>
+      <Tab title="Windows">
+        Run in an Administrator Command Prompt:
+
+        ```batch
+        nmake install
+        ```
+
+        This installs libmem to `C:\Program Files\libmem\` by default.
+      </Tab>
+
+      <Tab title="Linux/FreeBSD">
+        ```bash
+        sudo make install
+        ```
+
+        This installs libmem to `/usr/` by default:
+        - Headers: `/usr/include/libmem/`
+        - Libraries: `/usr/lib/`
+      </Tab>
+    </Tabs>
+  </Step>
+</Steps>
+
+## Build Outputs
+
+After building, you'll find the following files in the `build` directory:
+
+<Tabs>
+  <Tab title="Windows">
+    - `libmem.dll` - Dynamic link library
+    - `libmem.lib` - Import library for linking
+    - `libmem.exp` - Export file
+  </Tab>
+
+  <Tab title="Linux">
+    - `liblibmem.so` - Shared object library
+    - `liblibmem.a` - Static library (if built with `-DLIBMEM_BUILD_STATIC=ON`)
+  </Tab>
+
+  <Tab title="FreeBSD">
+    - `liblibmem.so` - Shared object library
+    - `liblibmem.a` - Static library (if built with `-DLIBMEM_BUILD_STATIC=ON`)
+  </Tab>
+</Tabs>
+
+## Using the Built Library
+
+After installation, follow the language-specific usage instructions:
+
+### C/C++
+
+Add the include directive to your source code:
+
+```c
+#include <libmem/libmem.h>   /* C/C++ */
+#include <libmem/libmem.hpp> /* Modern C++ */
+```
+
+Link against the library:
+
+<Tabs>
+  <Tab title="GCC/Clang">
+    ```bash
+    gcc myprogram.c -llibmem -o myprogram
+    g++ myprogram.cpp -llibmem -o myprogram
+    ```
+  </Tab>
+
+  <Tab title="Visual Studio">
+    Add to your project:
+    1. Include directories: `C:\Program Files\libmem\include`
+    2. Library directories: `C:\Program Files\libmem\lib`
+    3. Additional dependencies: `libmem.lib`
+  </Tab>
+
+  <Tab title="CMake">
+    ```cmake
+    find_package(libmem CONFIG REQUIRED)
+    target_link_libraries(myprogram PRIVATE libmem::libmem)
+    ```
+  </Tab>
+</Tabs>
+
+### Rust
+
+Set the `LIBMEM_DIR` environment variable to point to your installation:
+
+```bash
+export LIBMEM_DIR=/usr  # Linux/FreeBSD
+set LIBMEM_DIR=C:\Program Files\libmem  # Windows
+```
+
+Then add to `Cargo.toml`:
+
+```toml
+[dependencies]
+libmem = { version = "5", features = [] }  # Disable auto-fetch
+```
+
+### Python
+
+Set the `LIBDIR` environment variable:
+
+```bash
+export LIBDIR=/usr  # Linux/FreeBSD
+set LIBDIR=C:\Program Files\libmem  # Windows
+```
+
+Then install the Python package:
+
+```bash
+pip install libmem
+```
+
+## Troubleshooting
+
+### Windows
+
+<AccordionGroup>
+  <Accordion title="nmake is not recognized">
+    Make sure you're running the command in a Visual Studio Developer Command Prompt, not a regular Command Prompt.
+  </Accordion>
+
+  <Accordion title="Python not found during build">
+    Ensure Python is in your PATH. Re-install Python and check the "Add Python to PATH" option.
+  </Accordion>
+
+  <Accordion title="Missing Windows SDK">
+    Install the appropriate Windows SDK for your Windows version. CMake will report which components are missing.
+  </Accordion>
+</AccordionGroup>
+
+### Linux/FreeBSD
+
+<AccordionGroup>
+  <Accordion title="Permission denied during install">
+    Make sure to run `sudo make install` with root privileges.
+  </Accordion>
+
+  <Accordion title="Missing kernel headers">
+    Install the linux-headers or kernel-devel package for your distribution.
+  </Accordion>
+
+  <Accordion title="Submodule errors">
+    If you get errors about missing submodules, run:
+    ```bash
+    git submodule update --init --recursive
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Testing the Build
+
+You can build and run the tests to verify your installation:
+
+```bash
+mkdir build
+cd build
+cmake .. -DLIBMEM_BUILD_TESTS=ON
+make        # or nmake on Windows
+./tests     # or tests.exe on Windows
+```
+
+## Next Steps
+
+Now that you've built and installed libmem from source, head to the [Quickstart](/quickstart) guide to start using it in your projects.

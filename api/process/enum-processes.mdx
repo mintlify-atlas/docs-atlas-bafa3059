@@ -1,0 +1,147 @@
+---
+title: 'LM_EnumProcesses'
+description: 'Enumerate all processes on the system'
+---
+
+## Description
+
+Enumerates processes on a system and calls a callback function for each process found.
+
+## Function Signature
+
+```c
+LM_API lm_bool_t LM_CALL
+LM_EnumProcesses(lm_bool_t (LM_CALL *callback)(lm_process_t *process,
+                                               lm_void_t    *arg),
+                 lm_void_t          *arg);
+```
+
+## Parameters
+
+<ParamField path="callback" type="function pointer" required>
+  The callback function that will receive the current process in the enumeration and an extra argument. This function should return `LM_TRUE` to continue the enumeration, or `LM_FALSE` to stop it.
+  
+  **Callback Signature:**
+  ```c
+  lm_bool_t callback(lm_process_t *process, lm_void_t *arg)
+  ```
+</ParamField>
+
+<ParamField path="arg" type="lm_void_t *">
+  The user-defined data structure that will be passed to the callback function along with the `lm_process_t` structure. This allows you to pass additional context or data to your callback without using global variables.
+</ParamField>
+
+## Return Value
+
+<ResponseField name="return" type="lm_bool_t">
+  Returns `LM_TRUE` on success, or `LM_FALSE` on failure.
+</ResponseField>
+
+## Process Structure
+
+The callback receives a pointer to `lm_process_t` with the following fields:
+
+```c
+typedef struct lm_process_t {
+    lm_pid_t  pid;          // Process ID
+    lm_pid_t  ppid;         // Parent process ID
+    lm_arch_t arch;         // Process architecture
+    lm_size_t bits;         // Process bits (32 or 64)
+    lm_time_t start_time;   // Process start timestamp in ms since boot
+    lm_char_t path[LM_PATH_MAX];  // Full path to process executable
+    lm_char_t name[LM_PATH_MAX];  // Process name
+} lm_process_t;
+```
+
+## Example
+
+### Basic Process Enumeration
+
+```c
+lm_bool_t callback(lm_process_t *process, lm_void_t *arg)
+{
+    printf("Process: %s (PID: %d)\n", process->name, process->pid);
+    printf("  Path: %s\n", process->path);
+    printf("  Bits: %zu\n", process->bits);
+    return LM_TRUE; // Continue enumeration
+}
+
+int main()
+{
+    LM_EnumProcesses(callback, NULL);
+    return 0;
+}
+```
+
+### Find Specific Process
+
+```c
+typedef struct {
+    const char *target_name;
+    lm_process_t result;
+    lm_bool_t found;
+} FindData;
+
+lm_bool_t find_callback(lm_process_t *process, lm_void_t *arg)
+{
+    FindData *data = (FindData *)arg;
+    
+    if (strcmp(process->name, data->target_name) == 0) {
+        data->result = *process;
+        data->found = LM_TRUE;
+        return LM_FALSE; // Stop enumeration
+    }
+    
+    return LM_TRUE; // Continue enumeration
+}
+
+int main()
+{
+    FindData data = {
+        .target_name = "game.exe",
+        .found = LM_FALSE
+    };
+    
+    LM_EnumProcesses(find_callback, &data);
+    
+    if (data.found) {
+        printf("Found process: %s (PID: %d)\n", 
+               data.result.name, data.result.pid);
+    }
+    
+    return 0;
+}
+```
+
+### Count Processes
+
+```c
+lm_bool_t count_callback(lm_process_t *process, lm_void_t *arg)
+{
+    int *count = (int *)arg;
+    (*count)++;
+    return LM_TRUE;
+}
+
+int main()
+{
+    int process_count = 0;
+    LM_EnumProcesses(count_callback, &process_count);
+    printf("Total processes: %d\n", process_count);
+    return 0;
+}
+```
+
+## Notes
+
+- The callback function is called for each running process on the system
+- Return `LM_FALSE` from the callback to stop the enumeration early
+- The `arg` parameter allows passing custom data to your callback without globals
+- On some systems, you may need elevated privileges to enumerate all processes
+- The process information in the callback is only valid during the callback execution
+
+## See Also
+
+- [LM_FindProcess](/api/process/find-process) - Find a specific process by name
+- [LM_GetProcess](/api/process/get-process) - Get information about the current process
+- [LM_IsProcessAlive](/api/process/process-utils#lm-isprocessalive) - Check if a process is alive

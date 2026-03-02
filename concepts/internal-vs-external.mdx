@@ -1,0 +1,130 @@
+---
+title: Internal vs External Operations
+description: Understanding the difference between internal and external memory operations in libmem
+---
+
+libmem provides two distinct modes of operation: **internal** and **external**. Understanding the difference between these modes is crucial for effective memory manipulation.
+
+## Internal Operations
+
+Internal operations work within the **same process** where your code is running. These functions operate on the current process's memory space directly.
+
+### Characteristics
+
+- **Fast**: Direct memory access without system calls
+- **No special permissions required**: Operating within your own process
+- **Typical use case**: Injected DLLs, shared libraries, or self-modification
+
+### Example Functions
+
+- `LM_GetProcess()` - Get information about the current process
+- `LM_ReadMemory()` - Read from current process memory
+- `LM_WriteMemory()` - Write to current process memory
+- `LM_FindModule()` - Find a module in the current process
+- `LM_HookCode()` - Hook a function in the current process
+
+<Info>
+Internal operations are ideal when your code is running inside the target process, such as when developing game mods or plugins.
+</Info>
+
+## External Operations
+
+External operations work across **different processes**. These functions allow you to manipulate another process's memory from your application.
+
+### Characteristics
+
+- **Process separation**: Operate on a different process's memory
+- **Requires elevated permissions**: May need administrator/root privileges
+- **Typical use case**: Trainers, debuggers, analysis tools
+- **Function naming**: Identified by the `Ex` suffix (e.g., `LM_ReadMemoryEx`)
+
+### Example Functions
+
+- `LM_GetProcessEx()` - Get information about a target process by PID
+- `LM_ReadMemoryEx()` - Read from another process's memory
+- `LM_WriteMemoryEx()` - Write to another process's memory
+- `LM_FindModuleEx()` - Find a module in another process
+- `LM_HookCodeEx()` - Hook a function in another process
+
+<Note>
+External operations require you to pass a pointer to an `lm_process_t` structure that identifies the target process.
+</Note>
+
+## Function Naming Convention
+
+The naming convention is consistent throughout libmem:
+
+| Mode | Function Pattern | Example |
+|------|-----------------|----------|
+| Internal | `LM_FunctionName()` | `LM_ReadMemory()` |
+| External | `LM_FunctionNameEx()` | `LM_ReadMemoryEx()` |
+
+## Code Examples
+
+### Internal Operation Example
+
+```c
+#include <libmem/libmem.h>
+
+int main()
+{
+    lm_process_t process;
+    lm_module_t module;
+    
+    // Get the current process information
+    LM_GetProcess(&process);
+    
+    // Find a module in the current process
+    LM_FindModule("game.dll", &module);
+    
+    // Read memory from the current process
+    lm_byte_t buffer[64];
+    LM_ReadMemory(module.base, buffer, sizeof(buffer));
+    
+    return 0;
+}
+```
+
+### External Operation Example
+
+```c
+#include <libmem/libmem.h>
+
+int main()
+{
+    lm_process_t target_process;
+    lm_module_t module;
+    
+    // Find the target process by name
+    LM_FindProcess("game.exe", &target_process);
+    
+    // Find a module in the target process
+    LM_FindModuleEx(&target_process, "game.dll", &module);
+    
+    // Read memory from the target process
+    lm_byte_t buffer[64];
+    LM_ReadMemoryEx(&target_process, module.base, buffer, sizeof(buffer));
+    
+    return 0;
+}
+```
+
+## When to Use Each Mode
+
+### Use Internal Operations When:
+
+- Your code is injected into the target process
+- Building plugins, mods, or extensions
+- Maximum performance is required
+- You have control over the target process
+
+### Use External Operations When:
+
+- Building standalone trainers or cheats
+- Creating debugging or analysis tools
+- The target process cannot be modified
+- You need to monitor or manipulate multiple processes
+
+<Info>
+Most libmem APIs have both internal and external variants, providing flexibility for different use cases.
+</Info>
