@@ -1,0 +1,192 @@
+{
+  "projectType": "sdk-library",
+  "projectName": "libmem",
+  "projectDescription": "Advanced cross-platform game hacking and memory manipulation library for C, C++, Rust, and Python",
+  "theme": "aspen",
+  "primaryColor": "#8B5CF6",
+  "lightColor": "#A78BFA",
+  "darkColor": "#6D28D9",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "introduction",
+              "features",
+              "platforms"
+            ]
+          },
+          {
+            "group": "Getting Started",
+            "pages": [
+              "installation",
+              "quickstart",
+              "building-from-source"
+            ]
+          },
+          {
+            "group": "Language Bindings",
+            "pages": [
+              "bindings/c-cpp",
+              "bindings/rust",
+              "bindings/python"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/internal-vs-external",
+              "concepts/processes-and-threads",
+              "concepts/memory-protection",
+              "concepts/architecture-support"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/process-enumeration",
+              "guides/memory-read-write",
+              "guides/memory-scanning",
+              "guides/function-hooking",
+              "guides/assembly-disassembly",
+              "guides/vmt-hooking",
+              "guides/module-injection"
+            ]
+          },
+          {
+            "group": "Examples",
+            "pages": [
+              "examples/basic-memory-manipulation",
+              "examples/pattern-scanning",
+              "examples/hook-game-function",
+              "examples/pointer-chains"
+            ]
+          },
+          {
+            "group": "Contributing",
+            "pages": [
+              "contributing"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "API Overview",
+            "pages": [
+              "api/overview"
+            ]
+          },
+          {
+            "group": "Process APIs",
+            "pages": [
+              "api/process/enum-processes",
+              "api/process/get-process",
+              "api/process/find-process",
+              "api/process/process-utils"
+            ]
+          },
+          {
+            "group": "Thread APIs",
+            "pages": [
+              "api/thread/enum-threads",
+              "api/thread/get-thread"
+            ]
+          },
+          {
+            "group": "Module APIs",
+            "pages": [
+              "api/module/enum-modules",
+              "api/module/find-module",
+              "api/module/load-module",
+              "api/module/unload-module"
+            ]
+          },
+          {
+            "group": "Symbol APIs",
+            "pages": [
+              "api/symbol/enum-symbols",
+              "api/symbol/find-symbol",
+              "api/symbol/demangle"
+            ]
+          },
+          {
+            "group": "Memory Segment APIs",
+            "pages": [
+              "api/segment/enum-segments",
+              "api/segment/find-segment"
+            ]
+          },
+          {
+            "group": "Memory APIs",
+            "pages": [
+              "api/memory/read-write",
+              "api/memory/allocate-free",
+              "api/memory/protect"
+            ]
+          },
+          {
+            "group": "Scanning APIs",
+            "pages": [
+              "api/scanning/deep-pointer",
+              "api/scanning/data-scan",
+              "api/scanning/pattern-scan",
+              "api/scanning/signature-scan"
+            ]
+          },
+          {
+            "group": "Assembler APIs",
+            "pages": [
+              "api/assembler/assemble",
+              "api/assembler/disassemble",
+              "api/assembler/code-length"
+            ]
+          },
+          {
+            "group": "Hooking APIs",
+            "pages": [
+              "api/hooking/hook-code",
+              "api/hooking/unhook-code",
+              "api/hooking/vmt-hook"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Cross-platform process and memory manipulation (Windows/Linux/FreeBSD)",
+    "Internal and external memory operations",
+    "Function hooking and detouring with trampoline support",
+    "Memory pattern and signature scanning",
+    "JIT assembly and disassembly via Keystone and Capstone",
+    "VMT (Virtual Method Table) hooking",
+    "Module enumeration and dynamic loading/injection",
+    "Multi-architecture support (x86, x64, ARM, ARM64)",
+    "Bindings for C, Modern C++, Rust, and Python"
+  ],
+  "publicApiSurface": [
+    "LM_EnumProcesses / find_process()",
+    "LM_FindModule / find_module()",
+    "LM_ReadMemory / read_memory()",
+    "LM_WriteMemory / write_memory()",
+    "LM_AllocMemory / alloc_memory()",
+    "LM_ProtMemory / prot_memory()",
+    "LM_PatternScan / pattern_scan()",
+    "LM_SigScan / sig_scan()",
+    "LM_DeepPointer / deep_pointer()",
+    "LM_HookCode / hook_code()",
+    "LM_UnhookCode / unhook_code()",
+    "LM_VmtHook / vmt_hook()",
+    "LM_LoadModule / load_module()",
+    "LM_Assemble / assemble()",
+    "LM_Disassemble / disassemble()",
+    "LM_EnumThreads / enum_threads()",
+    "LM_FindSymbolAddress / find_symbol_address()"
+  ]
+}
